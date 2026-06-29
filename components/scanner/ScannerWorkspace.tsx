@@ -270,7 +270,7 @@ export function ScannerWorkspace() {
       } else {
         setResults([]);
         setScanned(true);
-        alert(`Scan failed: ${data.error ?? res.status}. Is the Python service running?`);
+        alert(`Scan failed: ${data.error ?? res.status}${data.detail ? "\n\n" + data.detail : ""}`);
       }
     } catch (e) {
       setResults([]);
