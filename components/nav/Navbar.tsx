@@ -44,7 +44,7 @@ export function Navbar({ user }: { user: User }) {
     <nav className="h-14 border-b border-border bg-card flex items-center px-4 gap-6 shrink-0">
       <Link href="/dashboard" className="flex items-center gap-2 mr-2">
         <BarChart2 className="h-5 w-5 text-primary" />
-        <span className="font-bold text-sm">Glade</span>
+        <span className="font-bold text-sm">Glade Deck</span>
       </Link>
 
       <div className="flex items-center gap-1 flex-1">

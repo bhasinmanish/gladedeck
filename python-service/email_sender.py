@@ -1,5 +1,5 @@
 """
-Resend integration for Glade alert email notifications.
+Resend integration for Glade Deck alert email notifications.
 
 Uses the Resend REST API via httpx (no extra pip dependency).
 Sending domain: onboarding@resend.dev (Resend shared domain — no custom domain needed).
@@ -15,7 +15,7 @@ import httpx
 log = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
-FROM_ADDRESS   = "Glade Alerts <onboarding@resend.dev>"
+FROM_ADDRESS   = "Glade Deck Alerts <onboarding@resend.dev>"
 APP_URL        = os.getenv("GLADE_APP_URL", "http://localhost:3000")
 
 # ── Category labels ───────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ def _build_html(category_label: str, symbol: str | None, condition: str | None) 
   <div style="max-width:480px;margin:0 auto;padding:36px 24px;">
 
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
-      <span style="font-size:18px;font-weight:700;color:#818cf8;letter-spacing:-0.02em;">Glade</span>
+      <span style="font-size:18px;font-weight:700;color:#818cf8;letter-spacing:-0.02em;">Glade Deck</span>
       <span style="background:#1e293b;color:#64748b;font-size:10px;padding:2px 10px;border-radius:99px;font-weight:500;letter-spacing:0.04em;">
         {category_label}
       </span>
@@ -68,7 +68,7 @@ def _build_html(category_label: str, symbol: str | None, condition: str | None) 
       {condition_block}
       <a href="{APP_URL}/alerts"
          style="display:inline-block;margin-top:20px;background:#6366f1;color:#ffffff;font-size:13px;font-weight:600;padding:10px 22px;border-radius:8px;text-decoration:none;">
-        View in Glade →
+        View in Glade Deck →
       </a>
     </div>
 
@@ -100,7 +100,7 @@ async def send_alert_email(
         return False
 
     category_label = CATEGORY_LABELS.get(alert_type, "Alert")
-    subject = f"{symbol} — {category_label} | Glade" if symbol else f"{category_label} | Glade"
+    subject = f"{symbol} — {category_label} | Glade Deck" if symbol else f"{category_label} | Glade Deck"
     html    = _build_html(category_label, symbol, condition)
 
     try:
