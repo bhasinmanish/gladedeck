@@ -8,7 +8,7 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ["localhost:3000", "glade-zeta.vercel.app"],
+      allowedOrigins: ["localhost:3000", "gladedeck-zeta.vercel.app", "glade-zeta.vercel.app"],
     },
   },
 };
