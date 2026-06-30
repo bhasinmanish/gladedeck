@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Glade — Trading Dashboard",
+  title: "Glade Deck — Trading Dashboard",
   description: "Personal trading dashboard: scanner, charts, journal, reports.",
   manifest: "/manifest.json",
 };

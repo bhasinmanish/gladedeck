@@ -26,7 +26,7 @@ export default function LoginPage() {
               <BarChart2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Glade</CardTitle>
+          <CardTitle className="text-2xl font-bold">Glade Deck</CardTitle>
           <CardDescription>
             Sign in to access your trading dashboard.
           </CardDescription>

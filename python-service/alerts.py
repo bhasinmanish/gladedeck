@@ -70,7 +70,7 @@ async def dispatch_alert(request: AlertRequest) -> dict:
             .execute()
         )
         payload = json.dumps({
-            "title": f"Glade: {request.symbol or request.type}",
+            "title": f"Glade Deck: {request.symbol or request.type}",
             "body": request.condition or request.type,
         })
         for sub in subs.data or []:
@@ -103,7 +103,7 @@ async def dispatch_alert(request: AlertRequest) -> dict:
                     os.environ["TWILIO_ACCOUNT_SID"],
                     os.environ["TWILIO_AUTH_TOKEN"],
                 )
-                body = f"Glade alert: {request.symbol or ''} {request.condition or request.type}"
+                body = f"Glade Deck alert: {request.symbol or ''} {request.condition or request.type}"
                 twilio.messages.create(
                     body=body,
                     from_=os.environ["TWILIO_FROM_NUMBER"],

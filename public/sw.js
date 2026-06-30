@@ -1,4 +1,4 @@
-// Glade — Service Worker
+// Glade Deck — Service Worker
 // Handles Web Push notifications
 
 self.addEventListener("install", (event) => {
@@ -16,7 +16,7 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Glade", body: event.data.text() };
+    payload = { title: "Glade Deck", body: event.data.text() };
   }
 
   const options = {

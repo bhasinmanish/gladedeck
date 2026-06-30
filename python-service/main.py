@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(title="Glade Scanner Service", lifespan=lifespan)
+app = FastAPI(title="Glade Deck Scanner Service", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
