@@ -529,7 +529,8 @@ export function ScannerWorkspace() {
       )}
 
       {/* ── Results table ─────────────────────────────────────────────────── */}
-      <div className="rounded-lg border border-border overflow-hidden flex-1 min-h-0 overflow-auto">
+      <div className="rounded-lg border border-border flex-1 min-h-0 overflow-auto">
+        <div className="overflow-x-auto min-w-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -617,6 +618,7 @@ export function ScannerWorkspace() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* ── Pagination ────────────────────────────────────────────────────── */}

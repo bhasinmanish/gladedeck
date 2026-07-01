@@ -110,6 +110,7 @@ export function ScannerTable({ results: initial }: Props) {
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -181,6 +182,7 @@ export function ScannerTable({ results: initial }: Props) {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

@@ -30,9 +30,9 @@ export default async function DailyReviewPage() {
   });
 
   return (
-    <div className="h-full flex flex-col p-6 gap-4 overflow-hidden">
+    <div className="h-full flex flex-col p-4 md:p-6 gap-4 overflow-hidden">
       <div className="shrink-0">
-        <h1 className="text-2xl font-bold">Daily Review</h1>
+        <h1 className="text-xl md:text-2xl font-bold">Daily Review</h1>
         <p className="text-muted-foreground text-sm mt-0.5">{dateLabel}</p>
       </div>
       <DailyReviewWorkspace

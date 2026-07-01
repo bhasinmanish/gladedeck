@@ -39,33 +39,35 @@ export function Navbar({ user }: { user: User }) {
   }
 
   return (
-    <nav className="h-14 border-b border-border bg-card flex items-center px-4 gap-6 shrink-0">
-      <Link href="/dashboard" className="flex items-center gap-2 mr-2">
+    <nav className="h-14 border-b border-border bg-card flex items-center px-4 gap-2 shrink-0">
+      <Link href="/dashboard" className="flex items-center gap-2 mr-1 shrink-0">
         <BarChart2 className="h-5 w-5 text-primary" />
         <span className="font-bold text-sm">Glade Deck</span>
       </Link>
 
-      <div className="flex items-center gap-1 flex-1">
-        {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                active
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-              )}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+      <div className="flex-1 overflow-x-auto scrollbar-hide min-w-0">
+        <div className="flex items-center gap-1 min-w-max">
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                  active
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <span className="text-xs text-muted-foreground hidden sm:block mr-1">
           {user.email}
         </span>

@@ -78,4 +78,11 @@
   .bg-loss\/10 {
     background-color: hsl(var(--loss) / 0.1);
   }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

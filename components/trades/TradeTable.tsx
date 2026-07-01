@@ -97,7 +97,8 @@ export function TradeTable({ trades: initial }: Props) {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden flex-1 min-h-0 overflow-auto">
+      <div className="rounded-lg border border-border flex-1 min-h-0 overflow-auto">
+        <div className="overflow-x-auto min-w-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -172,6 +173,7 @@ export function TradeTable({ trades: initial }: Props) {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       <AddTradeDialog

@@ -437,10 +437,13 @@ export function DashboardHub({
   };
 
   return (
-    <div className={cn("h-full p-6", prefs.cols === 3 ? "flex flex-col overflow-hidden" : "overflow-auto")}>
+    <div className={cn(
+      "h-full p-4 md:p-6 overflow-auto",
+      prefs.cols === 3 ? "md:flex md:flex-col md:overflow-hidden" : ""
+    )}>
       {/* Header */}
-      <div className={cn("shrink-0", prefs.cols === 3 ? "mb-5" : "mb-5")}>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="shrink-0 mb-4 md:mb-5">
+        <h1 className="text-xl md:text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
           {new Date().toLocaleDateString("en-US", {
             weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -451,8 +454,10 @@ export function DashboardHub({
       {/* Widget grid */}
       <div
         className={cn(
-          "grid gap-4",
-          prefs.cols === 3 ? "flex-1 min-h-0 grid-cols-3" : "grid-cols-2"
+          "grid gap-3 md:gap-4",
+          prefs.cols === 3
+            ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:flex-1 md:min-h-0"
+            : "grid-cols-1 sm:grid-cols-2"
         )}
         style={prefs.cols === 3 ? { gridAutoRows: "1fr" } : undefined}
       >

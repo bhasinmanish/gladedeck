@@ -276,10 +276,10 @@ export function AlertsPage({
   }
 
   return (
-    <div className="h-full flex flex-col p-6 gap-5 overflow-hidden">
+    <div className="h-full flex flex-col p-4 md:p-6 gap-5 overflow-hidden">
       {/* Page header */}
       <div className="shrink-0">
-        <h1 className="text-2xl font-bold">Alerts</h1>
+        <h1 className="text-xl md:text-2xl font-bold">Alerts</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
           Manage your price alerts and view notification history.
         </p>
