@@ -23,12 +23,12 @@ A personal trading dashboard that automates the repetitive parts of a trader's d
 
 ## Deployment (LIVE — fully cloud-hosted, zero local processes required)
 
-- **Frontend**: https://gladedeck-zeta.vercel.app (Vercel, auto-deploys on push to `main`)
+- **Frontend**: https://gladedeck.com (custom domain) / https://gladedeck-zeta.vercel.app (Vercel alias)
 - **Python service**: https://gladedeck-production.up.railway.app (Railway, auto-restarts on var changes, auto-redeploys on push to `main`)
 - **GitHub repo**: https://github.com/bhasinmanish/gladedeck (public — required for Vercel Hobby plan auto-deploy; renamed from `glade`)
 - **Database/Auth**: Supabase cloud project (uryrtpamvkprugnjqesn.supabase.co)
 
-Opening https://gladedeck-zeta.vercel.app on any device works immediately — no terminal, no `npm run dev`, no `python main.py`. Login, scanner, alerts, and email all run fully in the cloud.
+Opening https://gladedeck.com on any device works immediately — no terminal, no `npm run dev`, no `python main.py`. Login, scanner, alerts, and email all run fully in the cloud.
 
 Project was renamed from "Glade" to "Glade Deck" (display) / `gladedeck` (repo, URLs) — see troubleshooting log item 12 below for the full rename process if doing this again.
 
@@ -44,23 +44,22 @@ To run locally for development only:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://uryrtpamvkprugnjqesn.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-NEXT_PUBLIC_APP_URL=https://gladedeck-zeta.vercel.app
+NEXT_PUBLIC_APP_URL=https://gladedeck.com
 SUPABASE_SERVICE_ROLE_KEY=...
 PYTHON_SERVICE_URL=https://gladedeck-production.up.railway.app
 PYTHON_SERVICE_SECRET=glade-secret-123
 RESEND_API_KEY=re_joDAfVjm_Jk389H6kVFHS96MjFjHTzRqH
-RESEND_TEST_TO=manshabhasin9@gmail.com
+RESEND_TEST_TO=manshabhasin9@gmail.com        (remove once Resend domain is verified)
 ANTHROPIC_API_KEY=sk-ant-...
 SCHWAB_REDIRECT_URI=...
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=932453965974-iqmo9qcq3k513l43v7faltcvp5uujq2h.apps.googleusercontent.com   (legacy, no longer required by login page — kept for reference)
 ```
 
 ### Railway (Python service)
 ```
 SUPABASE_URL=https://uryrtpamvkprugnjqesn.supabase.co       (no trailing slash — caused PGRST125 errors when present)
 SUPABASE_SERVICE_ROLE_KEY=...                                 (must be the `service_role` key, not `anon`)
-SERVICE_SECRET=glade-secret-123                                (must exactly match Vercel's PYTHON_SERVICE_SECRET)
-GLADE_APP_URL=https://gladedeck-zeta.vercel.app                   (used for links inside alert/notification emails)
+SERVICE_SECRET=glade-secret-123                               (must exactly match Vercel's PYTHON_SERVICE_SECRET)
+GLADE_APP_URL=https://gladedeck.com                           (used for links inside alert/notification emails)
 RESEND_API_KEY=re_joDAfVjm_Jk389H6kVFHS96MjFjHTzRqH
 TWILIO_ACCOUNT_SID=...           (placeholder, SMS not active)
 TWILIO_AUTH_TOKEN=...            (placeholder, SMS not active)
@@ -79,6 +78,10 @@ Same keys as Railway but pointing at local resources where relevant.
 - Client Secret: from Google Cloud Console → APIs & Services → Credentials → OAuth client (the one ending `...VI_M`)
 - This is required because the login page uses Supabase's `signInWithOAuth`, which makes Supabase the OAuth client (needs the secret), unlike the old Google Identity Services flow.
 
+### Supabase Dashboard config (Authentication → URL Configuration)
+- Site URL: `https://gladedeck.com`
+- Redirect URLs: `https://gladedeck.com/**`, `https://gladedeck-zeta.vercel.app/**`, `http://localhost:3000/**`
+
 ### Google Cloud Console config (APIs & Services → Credentials → OAuth client "Glade")
 - Authorized JavaScript origins: `http://localhost:3000`
 - Authorized redirect URIs must include: `https://uryrtpamvkprugnjqesn.supabase.co/auth/v1/callback`
@@ -87,15 +90,26 @@ Same keys as Railway but pointing at local resources where relevant.
 
 ## What's Been Built
 
-### Navigation tabs (all implemented)
+### Navigation tabs (all implemented, no phase badges)
 - **Dashboard** — hub with 6 draggable widgets, user-customizable layout (2 or 3 columns)
 - **Scanner** — TradingView-powered stock screener with custom filter presets
 - **Charts** — TradingView chart with watchlist sidebar
 - **Alerts** — dedicated alerts page (My Alerts + Activity tabs)
-- **Daily Review** — AI chatbot trade journal (P2 badge — UI built, Schwab sync pending)
-- **Trade Log** — trade history + P&L tracking (P2 badge — UI built, Schwab sync pending)
-- **Strategies** — strategy management (P3 badge)
-- **Reports** — reporting templates (P3 badge)
+- **Daily Review** — AI chatbot trade journal (UI built, Schwab sync pending)
+- **Trade Log** — trade history + P&L tracking (UI built, Schwab sync pending)
+- **Strategies** — strategy management (UI built)
+- **Reports** — reporting templates (UI built)
+
+Nav tabs scroll horizontally on mobile (overflow-x-auto + .scrollbar-hide CSS utility) so all 8 tabs are always reachable by swiping right.
+
+### Responsive design (fully implemented)
+All screens adapt to phone/tablet/desktop:
+- Nav tabs are horizontally scrollable on mobile (hidden scrollbar, `min-w-max` inner div prevents wrapping)
+- Dashboard grid: `grid-cols-1` on phone → `sm:grid-cols-2` on tablet → `md:grid-cols-2` or `md:grid-cols-3` (per user pref) on desktop
+- All data tables (scanner, trade log) have `overflow-x-auto` wrappers so they scroll horizontally instead of squashing
+- Page padding: `p-4 md:p-6` on scanner, daily review, trade log, alerts
+- Page headings: `text-xl md:text-2xl`
+- CSS utility `.scrollbar-hide` in `app/globals.css` hides scrollbar track visually while keeping scroll functional
 
 ### Dashboard widgets (6 total, drag-to-reorder via Dashboard Preferences)
 - `TopSetupsWidget` — today's scanner results
@@ -109,7 +123,7 @@ Same keys as Railway but pointing at local resources where relevant.
 - Column count toggle (2 or 3 columns)
 - Drag-and-drop widget reorder with live preview
 - Email notification settings (per-category toggles)
-- "Send test email" button — sends via Resend, shows real success/failure state (fixed: previously always showed "sent" even on failure)
+- "Send test email" button — sends via Resend, shows real success/failure state
 
 ### Login (`app/(auth)/login/page.tsx`)
 - Uses Supabase `signInWithOAuth({ provider: "google" })` — redirects through Supabase, not Google Identity Services directly
@@ -129,7 +143,7 @@ Same keys as Railway but pointing at local resources where relevant.
 - `market_monitor.py` — news monitor every 15 min during extended hours
 - `price_alert_checker.py` — checks user price alerts every 2 min
 - `alert_triggers.py` — fires in-app alerts when scanner conditions met
-- `email_sender.py` — sends dark-themed HTML emails via Resend REST API
+- `email_sender.py` — sends dark-themed HTML emails via Resend REST API; FROM_ADDRESS currently `"Glade Deck Alerts <onboarding@resend.dev>"` — change to `alerts@gladedeck.com` once Resend domain verification completes
 - `news.py` — fetches news for symbols
 - Secret: `X-Service-Secret` header required on all endpoints (must match `SERVICE_SECRET`)
 - `main.py` entry point: `if __name__ == "__main__": uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))`
@@ -144,41 +158,48 @@ app/
   (auth)/login/page.tsx          — Google OAuth login page (Supabase signInWithOAuth)
   (dashboard)/
     dashboard/page.tsx           — Dashboard hub (6 parallel Supabase queries)
-    scanner/page.tsx             — Scanner tab
+    scanner/page.tsx             — Scanner tab (p-4 md:p-6 responsive padding)
     charts/page.tsx              — Charts + watchlist sidebar
     alerts/page.tsx              — Alerts management
-    daily-review/page.tsx        — Daily review chatbot
-    trade-log/page.tsx           — Trade history
+    daily-review/page.tsx        — Daily review chatbot (p-4 md:p-6 responsive padding)
+    trade-log/page.tsx           — Trade history (p-4 md:p-6 responsive padding)
     strategies/page.tsx          — Strategy management
     reports/page.tsx             — Reports
+  layout.tsx                     — Root layout: title "Glade Deck — Trading Dashboard"
+  globals.css                    — CSS variables + .scrollbar-hide utility class
   api/
-    scanner/route.ts             — POST: runs scan via Python (try/catch around fetch, surfaces Python error detail); GET: today's results
+    scanner/route.ts             — POST: runs scan via Python; GET: today's results
     notification-prefs/route.ts  — GET/POST email preferences
-    notification-prefs/test/route.ts — POST: sends test email via Resend (RESEND_TEST_TO override for unverified domains)
+    notification-prefs/test/route.ts — POST: sends test email via Resend (RESEND_TEST_TO override)
     price-alerts/route.ts        — CRUD for price alert rules
     alerts/route.ts              — Mark alerts read, delete
     trades/route.ts              — Trade CRUD
 
 components/
-  nav/Navbar.tsx                 — Top nav + Dashboard Preferences trigger
+  nav/Navbar.tsx                 — Top nav: tabs scroll horizontally on mobile (overflow-x-auto scrollbar-hide)
   dashboard/
-    DashboardHub.tsx             — 6-widget grid, reads prefs from localStorage
-    DashboardPreferences.tsx     — Dialog: layout + widget order + email settings + test email (with error display)
-  alerts/AlertsPage.tsx          — My Alerts + Activity tabs
-  scanner/ScannerWorkspace.tsx   — Filter presets + results table; surfaces Python error detail in failure alert
+    DashboardHub.tsx             — Responsive widget grid (1/2/3 cols by breakpoint + user pref)
+    DashboardPreferences.tsx     — Dialog: layout + widget order + email settings + test email
+  alerts/AlertsPage.tsx          — My Alerts + Activity tabs (p-4 md:p-6)
+  scanner/
+    ScannerWorkspace.tsx         — Full scanner UI with filter presets + results table (overflow-x-auto)
+    ScannerTable.tsx             — Simpler scanner results table (overflow-x-auto)
+  trades/TradeTable.tsx          — Trade history table (overflow-x-auto)
 
 lib/
   dashboard-widgets.ts           — WidgetKey types, loadPrefs/savePrefs, PREFS_EVENT
   types/index.ts                 — All shared TypeScript types
+  scanner-config.ts              — Filter fields, operators, column presets
 
 python-service/
-  main.py                        — FastAPI app entry point (run with python main.py locally, or via Dockerfile on Railway)
+  main.py                        — FastAPI app entry point
   scheduler.py                   — APScheduler configuration
   scanner.py                     — TradingView scan logic
-  email_sender.py                — Resend email integration
+  email_sender.py                — Resend email integration (update FROM_ADDRESS when domain verified)
   Dockerfile                     — Used by Railway for build/deploy
 
-next.config.mjs                  — ignoreBuildErrors/ignoreDuringBuilds (pre-existing TS errors), allowedOrigins for server actions (includes both old glade-zeta and new gladedeck-zeta domains)
+next.config.mjs                  — ignoreBuildErrors/ignoreDuringBuilds, allowedOrigins for server actions
+public/sw.js                     — Service worker for Web Push (VAPID not configured yet)
 .gitignore                       — excludes .env*, node_modules, .next, __pycache__, .vercel
 ```
 
@@ -218,7 +239,7 @@ interface DashboardPrefs {
 
 - 10 TypeScript errors in `lib/supabase/server.ts` (4) and `middleware.ts` (6) — implicit `any` parameter types (TS7006/TS7031). Pre-existing, not introduced by any feature work. Build ignores them via `ignoreBuildErrors: true` in `next.config.mjs`.
 - Scanner shows "Configure your filters and click Run Scan" until a scan is explicitly run.
-- Resend currently uses `onboarding@resend.dev` sender, which can only deliver to the Resend account's own email unless `RESEND_TEST_TO` override is set or a domain is verified.
+- Resend currently uses `onboarding@resend.dev` sender (can only deliver to the Resend account owner's email, or to `RESEND_TEST_TO` override). Once Resend domain verification for `gladedeck.com` completes, update `FROM_ADDRESS` in `python-service/email_sender.py` to `"Glade Deck Alerts <alerts@gladedeck.com>"` and remove `RESEND_TEST_TO` from Vercel env vars.
 
 ---
 
@@ -238,13 +259,13 @@ Problems hit and fixed while standing up Vercel + Railway, in case similar error
 10. **postgrest.exceptions.APIError PGRST125 "Invalid path specified in request URL"** → `SUPABASE_URL` in Railway had a trailing slash or stray whitespace from copy-paste; fixed by retyping the exact URL with no trailing slash.
 11. **Email links would point to localhost in production** → added `NEXT_PUBLIC_APP_URL` (Vercel) and `GLADE_APP_URL` (Railway) pointing to the live Vercel URL.
 12. **Full rebrand "Glade" → "Glade Deck" / `gladedeck`** → order that worked: (1) update all display-text strings in code and push, (2) rename GitHub repo (Settings → repository name) — old git remotes auto-redirect but should be updated with `git remote set-url`, (3) rename Vercel project (Settings → General) which changes the `.vercel.app` URL, (4) add new URL to Supabase → Authentication → URL Configuration (Site URL + Redirect URLs), (5) update `NEXT_PUBLIC_APP_URL` in Vercel, (6) update `next.config.mjs` allowedOrigins with new domain, (7) rename Railway service/project (Settings) and reconnect the GitHub source if it shows "GitHub Repo not found" (happens because Railway's source link breaks on repo rename — fix via the edit/pencil icon next to Source Repo), (8) update `PYTHON_SERVICE_URL` in Vercel to new Railway domain, (9) update `GLADE_APP_URL` in Railway to new Vercel domain, (10) redeploy Vercel — must be the latest deployment, not an older one from the list, (11) verify login + scan end-to-end.
+13. **Custom domain setup (gladedeck.com via Squarespace DNS)** → In Vercel → Domains: add `gladedeck.com` and `www.gladedeck.com`. Squarespace already pre-configures Vercel DNS for domains registered there; records showed up as "Vercel" in Squarespace DNS manager and Vercel marked them valid (blue checkmark). Resend domain verification (for sending email from `alerts@gladedeck.com`) requires 3 manual DNS records in Squarespace: DKIM TXT (`resend._domainkey`), MX record, and SPF TXT — the "Go to Squarespace" button in Resend does NOT add them automatically, must be added manually. DNS propagation takes 2–6 hours. Until verified, Resend can only send to `RESEND_TEST_TO` override address.
 
 ---
 
 ## Pending / Not Yet Done
 
-- **Schwab API** OAuth + position sync (Trade Log shows manual trades only for now)
+- **Schwab API** OAuth + position sync — user needs to register at developer.schwab.com first; Trade Log and Daily Review show manual trades only for now
+- **Resend domain verification** — DNS records added for `gladedeck.com`; waiting for propagation. Once verified: update `FROM_ADDRESS` in `python-service/email_sender.py` to `"Glade Deck Alerts <alerts@gladedeck.com>"` and remove `RESEND_TEST_TO` env var from Vercel
 - **Twilio SMS** alerts (credentials not configured — keys are placeholder in Railway env vars)
 - **Web Push** notifications (VAPID keys not configured)
-- **P2/P3 badges** on Daily Review, Trade Log, Strategies, Reports nav items (nav items exist, badges can be removed when features are complete)
-- **Resend domain verification** — currently using `onboarding@resend.dev` sender which can only deliver to the Resend account email. Need to verify a domain at resend.com/domains to send to any recipient.
