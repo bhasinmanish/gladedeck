@@ -8,25 +8,23 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { BarChart2, LogOut, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import type { User } from "@supabase/supabase-js";
 import { DashboardPreferences } from "@/components/dashboard/DashboardPreferences";
 
 interface NavItem {
   label: string;
   href: string;
-  phase: 1 | 2 | 3;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard",   href: "/dashboard",    phase: 1 },
-  { label: "Scanner",     href: "/scanner",      phase: 1 },
-  { label: "Charts",      href: "/charts",       phase: 1 },
-  { label: "Alerts",      href: "/alerts",       phase: 1 },
-  { label: "Daily Review",href: "/daily-review", phase: 2 },
-  { label: "Trade Log",   href: "/trade-log",    phase: 2 },
-  { label: "Strategies",  href: "/strategies",   phase: 3 },
-  { label: "Reports",     href: "/reports",      phase: 3 },
+  { label: "Dashboard",    href: "/dashboard"    },
+  { label: "Scanner",      href: "/scanner"      },
+  { label: "Charts",       href: "/charts"       },
+  { label: "Alerts",       href: "/alerts"       },
+  { label: "Daily Review", href: "/daily-review" },
+  { label: "Trade Log",    href: "/trade-log"    },
+  { label: "Strategies",   href: "/strategies"   },
+  { label: "Reports",      href: "/reports"      },
 ];
 
 export function Navbar({ user }: { user: User }) {
@@ -50,7 +48,6 @@ export function Navbar({ user }: { user: User }) {
       <div className="flex items-center gap-1 flex-1">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
-          const locked = item.phase > 1;
           return (
             <Link
               key={item.href}
@@ -63,14 +60,6 @@ export function Navbar({ user }: { user: User }) {
               )}
             >
               {item.label}
-              {locked && (
-                <Badge
-                  variant="secondary"
-                  className="ml-1.5 px-1 py-0 text-[10px] leading-4"
-                >
-                  P{item.phase}
-                </Badge>
-              )}
             </Link>
           );
         })}
