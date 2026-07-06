@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AddTradeDialog } from "@/components/trades/AddTradeDialog";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Trade, Strategy } from "@/lib/types";
 
@@ -33,8 +33,9 @@ function StatCard({ label, value, color }: { label: string; value: string; color
 
 export function TradeTable({ trades: initial, strategies }: Props) {
   const [trades, setTrades] = useState<Trade[]>(initial);
-  const [dialogOpen, setDialogOpen]   = useState(false);
-  const [deletingId, setDeletingId]   = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [deletingId, setDeletingId]     = useState<string | null>(null);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
@@ -48,8 +49,12 @@ export function TradeTable({ trades: initial, strategies }: Props) {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  function handleAdded(trade: Trade) {
-    setTrades(prev => [trade, ...prev]);
+  function handleSaved(trade: Trade) {
+    setTrades(prev => {
+      const i = prev.findIndex(t => t.id === trade.id);
+      if (i >= 0) { const next = [...prev]; next[i] = trade; return next; }
+      return [trade, ...prev];
+    });
   }
 
   async function deleteTrade(id: string) {
@@ -92,7 +97,7 @@ export function TradeTable({ trades: initial, strategies }: Props) {
       {/* Toolbar */}
       <div className="flex items-center justify-between shrink-0">
         <p className="text-sm text-muted-foreground">{trades.length} trade{trades.length !== 1 ? "s" : ""}</p>
-        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-2">
+        <Button size="sm" onClick={() => { setEditingTrade(null); setDialogOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" /> Log Trade
         </Button>
       </div>
@@ -163,13 +168,23 @@ export function TradeTable({ trades: initial, strategies }: Props) {
                     }
                   </TableCell>
                   <TableCell>
-                    <button
-                      onClick={() => deleteTrade(t.id)}
-                      disabled={deletingId === t.id}
-                      className="text-muted-foreground hover:text-loss transition-colors disabled:opacity-40"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setEditingTrade(t); setDialogOpen(true); }}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="Edit trade"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteTrade(t.id)}
+                        disabled={deletingId === t.id}
+                        className="text-muted-foreground hover:text-loss transition-colors disabled:opacity-40"
+                        title="Delete trade"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -181,9 +196,10 @@ export function TradeTable({ trades: initial, strategies }: Props) {
 
       <AddTradeDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onAdded={handleAdded}
+        onClose={() => { setDialogOpen(false); setEditingTrade(null); }}
+        onSaved={handleSaved}
         strategies={strategies}
+        initialTrade={editingTrade}
       />
     </div>
   );
