@@ -289,7 +289,7 @@ export function DailyReviewWorkspace({ initialTrades, initialSummary, userId, da
       <AddTradeDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onAdded={handleAdded}
+        onSaved={handleAdded}
         defaultDate={date}
       />
     </div>
