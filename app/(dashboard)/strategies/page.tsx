@@ -23,8 +23,9 @@ export default async function StrategiesRoute() {
       .order("created_at", { ascending: false }),
     supabase
       .from("trades")
-      .select("id, strategy_id, pnl")
-      .eq("user_id", user!.id),
+      .select("*")
+      .eq("user_id", user!.id)
+      .order("entry_date", { ascending: false }),
   ]);
 
   return (
