@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BarChart2, LogOut, SlidersHorizontal } from "lucide-react";
+import { BarChart2, LogOut, SlidersHorizontal, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
 import { DashboardPreferences } from "@/components/dashboard/DashboardPreferences";
@@ -71,6 +71,13 @@ export function Navbar({ user }: { user: User }) {
         <span className="text-xs text-muted-foreground hidden sm:block mr-1">
           {user.email}
         </span>
+        {user.email === "manshabhasin9@gmail.com" && (
+          <Link href="/admin" title="Admin portal">
+            <Button variant="ghost" size="icon">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </Button>
+          </Link>
+        )}
         <Button
           variant="ghost"
           size="icon"
