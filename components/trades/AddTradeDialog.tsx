@@ -10,27 +10,29 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { Trade } from "@/lib/types";
+import type { Trade, Strategy } from "@/lib/types";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onAdded: (trade: Trade) => void;
   defaultDate?: string;
+  strategies?: Pick<Strategy, "id" | "name">[];
 }
 
 const today = () => new Date().toISOString().split("T")[0];
 
-export function AddTradeDialog({ open, onClose, onAdded, defaultDate }: Props) {
+export function AddTradeDialog({ open, onClose, onAdded, defaultDate, strategies = [] }: Props) {
   const [form, setForm] = useState({
-    symbol:     "",
-    side:       "long" as "long" | "short",
-    trade_type: "day_trade" as Trade["trade_type"],
-    entry_date: defaultDate ?? today(),
+    symbol:      "",
+    side:        "long" as "long" | "short",
+    trade_type:  "day_trade" as Trade["trade_type"],
+    entry_date:  defaultDate ?? today(),
     entry_price: "",
     exit_price:  "",
     qty:         "",
     setup_notes: "",
+    strategy_id: "",
   });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -49,7 +51,7 @@ export function AddTradeDialog({ open, onClose, onAdded, defaultDate }: Props) {
       : null;
 
   function reset() {
-    setForm({ symbol: "", side: "long", trade_type: "day_trade", entry_date: defaultDate ?? today(), entry_price: "", exit_price: "", qty: "", setup_notes: "" });
+    setForm({ symbol: "", side: "long", trade_type: "day_trade", entry_date: defaultDate ?? today(), entry_price: "", exit_price: "", qty: "", setup_notes: "", strategy_id: "" });
     setError("");
   }
 
@@ -75,6 +77,7 @@ export function AddTradeDialog({ open, onClose, onAdded, defaultDate }: Props) {
           qty:         parseFloat(form.qty),
           pnl:         pnlPreview,
           setup_notes: form.setup_notes || null,
+          strategy_id: form.strategy_id || null,
           account:     "main",
         }),
       });
@@ -211,6 +214,24 @@ export function AddTradeDialog({ open, onClose, onAdded, defaultDate }: Props) {
               pnlPreview >= 0 ? "text-profit bg-profit/10" : "text-loss bg-loss/10"
             )}>
               Estimated P&L: {pnlPreview >= 0 ? "+" : ""}${pnlPreview.toFixed(2)}
+            </div>
+          )}
+
+          {/* Strategy */}
+          {strategies.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Strategy <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Select value={form.strategy_id || "none"} onValueChange={v => set("strategy_id", v === "none" ? "" : v)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {strategies.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
