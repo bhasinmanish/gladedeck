@@ -6,27 +6,40 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Pencil, Trash2, Lightbulb, BarChart2,
-  ChevronLeft, Code2, Copy, Check, Loader2, Info,
+  ChevronLeft, Code2, Copy, Check, Loader2, Info, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STRATEGY_CATALOG, CATEGORIES, type CatalogStrategy } from "@/lib/strategy-catalog";
-import type { TradeIdea, Strategy } from "@/lib/types";
+import type { TradeIdea, Strategy, Trade } from "@/lib/types";
 import { IdeaDialog } from "./IdeaDialog";
 
-// ── Pine Script generator ─────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function computeStats(trades: Trade[]) {
+  const closed      = trades.filter(t => t.pnl !== null);
+  const pnl         = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
+  const wins        = closed.filter(t => (t.pnl ?? 0) > 0);
+  const losses      = closed.filter(t => (t.pnl ?? 0) < 0);
+  const grossProfit = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+  const grossLoss   = Math.abs(losses.reduce((s, t) => s + (t.pnl ?? 0), 0));
+  return {
+    count:        closed.length,
+    pnl,
+    winRate:      closed.length > 0 ? Math.round((wins.length / closed.length) * 100) : null,
+    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
+  };
+}
+
+// ── Pine Script panel ─────────────────────────────────────────────────────────
 
 function PineScriptPanel({ strategy }: { strategy: CatalogStrategy }) {
-  const [pine, setPine]           = useState<string | null>(null);
+  const [pine, setPine]             = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [copied, setCopied]       = useState(false);
+  const [copied, setCopied]         = useState(false);
 
   async function generate() {
     setGenerating(true);
-    const prompt = [
-      `Strategy: ${strategy.name}`,
-      `Definition: ${strategy.definition}`,
-      `Summary: ${strategy.summary}`,
-    ].join("\n\n");
+    const prompt = `Strategy: ${strategy.name}\n\nDefinition: ${strategy.definition}\n\nSummary: ${strategy.summary}`;
     try {
       const res  = await fetch("/api/pine-script", {
         method: "POST",
@@ -55,13 +68,10 @@ function PineScriptPanel({ strategy }: { strategy: CatalogStrategy }) {
         </h3>
         {pine && (
           <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={copy}>
-            {copied
-              ? <><Check className="h-3.5 w-3.5" /> Copied</>
-              : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+            {copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
           </Button>
         )}
       </div>
-
       {pine ? (
         <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre">
           {pine}
@@ -72,9 +82,7 @@ function PineScriptPanel({ strategy }: { strategy: CatalogStrategy }) {
             Generate a Pine Script v5 implementation of this strategy.
           </p>
           <Button variant="outline" size="sm" onClick={generate} disabled={generating} className="gap-2">
-            {generating
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Code2 className="h-3.5 w-3.5" />}
+            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Code2 className="h-3.5 w-3.5" />}
             {generating ? "Generating…" : "Generate Pine Script"}
           </Button>
         </div>
@@ -85,16 +93,36 @@ function PineScriptPanel({ strategy }: { strategy: CatalogStrategy }) {
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
-function DetailPanel({ strategy }: { strategy: CatalogStrategy }) {
+function DetailPanel({
+  strategy,
+  applied,
+  applying,
+  onApply,
+  trades,
+  savedStrategy,
+}: {
+  strategy: CatalogStrategy;
+  applied: boolean;
+  applying: boolean;
+  onApply: () => void;
+  trades: Trade[];
+  savedStrategy: Strategy | undefined;
+}) {
+  const stratTrades = savedStrategy
+    ? trades.filter(t => t.strategy_id === savedStrategy.id)
+    : [];
+  const stats = computeStats(stratTrades);
+
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-bold">{strategy.name}</h2>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <Badge variant="secondary" className="text-[10px]">{strategy.category}</Badge>
-          <span className="text-[10px] text-muted-foreground">{strategy.timeHorizon}</span>
-          <div className="flex gap-1 flex-wrap">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold">{strategy.name}</h2>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <Badge variant="secondary" className="text-[10px]">{strategy.category}</Badge>
+            <span className="text-[10px] text-muted-foreground">{strategy.timeHorizon}</span>
             {strategy.tags.map(t => (
               <span key={t} className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                 {t}
@@ -102,7 +130,47 @@ function DetailPanel({ strategy }: { strategy: CatalogStrategy }) {
             ))}
           </div>
         </div>
+
+        {/* Apply button */}
+        {applied ? (
+          <Badge className="shrink-0 gap-1.5 bg-profit/10 text-profit border border-profit/20 hover:bg-profit/10">
+            <CheckCircle2 className="h-3 w-3" /> Applied
+          </Badge>
+        ) : (
+          <Button size="sm" onClick={onApply} disabled={applying} className="shrink-0 gap-1.5">
+            {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {applying ? "Applying…" : "Apply Strategy"}
+          </Button>
+        )}
       </div>
+
+      {/* Performance (only when applied + have trades) */}
+      {applied && (
+        <section>
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            Your Performance
+          </h3>
+          {stats.count === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No trades logged under this strategy yet. Tag trades with &ldquo;{strategy.name}&rdquo; in the Trade Log to track performance here.
+            </p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "Trades",        value: stats.count,                                     color: "" },
+                { label: "P&L",           value: `${stats.pnl >= 0 ? "+" : ""}$${Math.abs(stats.pnl).toFixed(0)}`, color: stats.pnl >= 0 ? "text-profit" : "text-loss" },
+                { label: "Win Rate",      value: stats.winRate !== null ? `${stats.winRate}%` : "—", color: "" },
+                { label: "Profit Factor", value: stats.profitFactor !== null ? stats.profitFactor.toFixed(2) : "—", color: stats.profitFactor !== null ? (stats.profitFactor >= 1 ? "text-profit" : "text-loss") : "" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-card border border-border rounded-lg px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className={cn("text-sm font-bold font-mono mt-0.5", color)}>{value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Definition */}
       <section>
@@ -126,15 +194,14 @@ function DetailPanel({ strategy }: { strategy: CatalogStrategy }) {
   );
 }
 
-// ── Strategy list item ────────────────────────────────────────────────────────
+// ── Catalog list item ─────────────────────────────────────────────────────────
 
 function CatalogItem({
-  strategy,
-  selected,
-  onSelect,
+  strategy, selected, applied, onSelect,
 }: {
   strategy: CatalogStrategy;
   selected: boolean;
+  applied: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -146,15 +213,16 @@ function CatalogItem({
       onClick={onSelect}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{strategy.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium truncate">{strategy.name}</p>
+          {applied && <CheckCircle2 className="h-3 w-3 text-profit shrink-0" />}
+        </div>
         <p className="text-[10px] text-muted-foreground truncate mt-0.5">{strategy.shortDesc}</p>
       </div>
       <button
         className={cn(
           "shrink-0 h-6 w-6 rounded-full flex items-center justify-center transition-colors",
-          selected
-            ? "bg-background/40 text-foreground"
-            : "text-muted-foreground group-hover:text-foreground"
+          selected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
         )}
         onClick={e => { e.stopPropagation(); onSelect(); }}
         title="View details"
@@ -170,15 +238,52 @@ function CatalogItem({
 interface Props {
   strategies: Strategy[];
   ideas: TradeIdea[];
-  trades: never[];
+  trades: Trade[];
 }
 
-export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
-  const [ideas, setIdeas]       = useState<TradeIdea[]>(initIdeas);
-  const [selected, setSelected] = useState<CatalogStrategy>(STRATEGY_CATALOG[0]);
-  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
-  const [ideaDlg, setIdeaDlg]   = useState<{ open: boolean; editing: TradeIdea | null }>({ open: false, editing: null });
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+export function StrategiesPage({ strategies: initStrategies, ideas: initIdeas, trades }: Props) {
+  const [userStrategies, setUserStrategies] = useState<Strategy[]>(initStrategies);
+  const [ideas, setIdeas]                   = useState<TradeIdea[]>(initIdeas);
+  const [selected, setSelected]             = useState<CatalogStrategy>(STRATEGY_CATALOG[0]);
+  const [mobileView, setMobileView]         = useState<"list" | "detail">("list");
+  const [applying, setApplying]             = useState<string | null>(null);
+  const [ideaDlg, setIdeaDlg]              = useState<{ open: boolean; editing: TradeIdea | null }>({ open: false, editing: null });
+  const [deletingId, setDeletingId]        = useState<string | null>(null);
+
+  function isApplied(catalog: CatalogStrategy) {
+    return userStrategies.some(s => s.name === catalog.name);
+  }
+
+  function getSavedStrategy(catalog: CatalogStrategy) {
+    return userStrategies.find(s => s.name === catalog.name);
+  }
+
+  async function applyStrategy(catalog: CatalogStrategy) {
+    if (isApplied(catalog)) return;
+    setApplying(catalog.id);
+    try {
+      const res = await fetch("/api/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:          catalog.name,
+          description:   catalog.definition,
+          time_horizon:  "day_trade",
+          catalyst_type: catalog.tags[0] ?? null,
+          setup_pattern: null,
+          entry_rules:   null,
+          exit_rules:    null,
+          risk_params:   {},
+        }),
+      });
+      if (res.ok) {
+        const saved: Strategy = await res.json();
+        setUserStrategies(prev => [...prev, saved]);
+      }
+    } finally {
+      setApplying(null);
+    }
+  }
 
   function select(s: CatalogStrategy) {
     setSelected(s);
@@ -212,10 +317,7 @@ export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
         <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             {mobileView === "detail" && (
-              <Button
-                variant="ghost" size="icon" className="h-8 w-8 md:hidden"
-                onClick={() => setMobileView("list")}
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={() => setMobileView("list")}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             )}
@@ -252,6 +354,7 @@ export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
                       key={s.id}
                       strategy={s}
                       selected={selected.id === s.id}
+                      applied={isApplied(s)}
                       onSelect={() => select(s)}
                     />
                   ))}
@@ -264,7 +367,15 @@ export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
               "flex-1 min-w-0",
               mobileView === "list" ? "hidden md:flex md:flex-col" : "flex flex-col"
             )}>
-              <DetailPanel key={selected.id} strategy={selected} />
+              <DetailPanel
+                key={selected.id}
+                strategy={selected}
+                applied={isApplied(selected)}
+                applying={applying === selected.id}
+                onApply={() => applyStrategy(selected)}
+                trades={trades}
+                savedStrategy={getSavedStrategy(selected)}
+              />
             </div>
           </div>
         </TabsContent>
@@ -307,8 +418,8 @@ export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
                       <td className="px-3 py-2.5">
                         <span className={cn(
                           "text-xs font-medium capitalize",
-                          idea.status === "active"  ? "text-profit" :
-                          idea.status === "closed"  ? "text-muted-foreground line-through" :
+                          idea.status === "active" ? "text-profit" :
+                          idea.status === "closed" ? "text-muted-foreground line-through" :
                           "text-muted-foreground"
                         )}>
                           {idea.status}
@@ -358,7 +469,7 @@ export function StrategiesPage({ ideas: initIdeas, strategies }: Props) {
         open={ideaDlg.open}
         onClose={() => setIdeaDlg({ open: false, editing: null })}
         onSaved={upsertIdea}
-        strategies={strategies}
+        strategies={userStrategies}
         initial={ideaDlg.editing}
       />
     </div>
