@@ -25,17 +25,24 @@ export async function POST(request: NextRequest) {
   const { prompt, language = "pine" } = await request.json();
   if (!prompt) return NextResponse.json({ error: "prompt is required" }, { status: 400 });
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Generate ${language === "pine" ? "Pine Script v5" : "ThinkScript"} for: ${prompt}`,
-      },
-    ],
-  });
+  let message;
+  try {
+    message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Generate ${language === "pine" ? "Pine Script v5" : "ThinkScript"} for: ${prompt}`,
+        },
+      ],
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[pine-script] Anthropic error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   const code =
     message.content[0].type === "text" ? message.content[0].text : "";
