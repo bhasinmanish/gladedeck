@@ -48,19 +48,31 @@ function PineScriptPanel({ name, definition, summary }: { name: string; definiti
   const [pine, setPine]             = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied]         = useState(false);
+  const [genError, setGenError]     = useState<string | null>(null);
 
   async function generate() {
     setGenerating(true);
+    setGenError(null);
     const prompt = [`Strategy: ${name}`, definition && `Definition: ${definition}`, summary && `Summary: ${summary}`]
       .filter(Boolean).join("\n\n");
     try {
-      const res  = await fetch("/api/pine-script", {
+      const res = await fetch("/api/pine-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
-      setPine((await res.json()).code ?? "");
-    } finally { setGenerating(false); }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setGenError(body.error ?? `Server error ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      setPine(data.code ?? "");
+    } catch (e) {
+      setGenError(String(e));
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function copy() {
@@ -76,14 +88,16 @@ function PineScriptPanel({ name, definition, summary }: { name: string; definiti
         <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
           Calculations / Pine Script
         </h3>
-        {pine && (
+        {pine !== null && pine.length > 0 && (
           <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={copy}>
             {copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
           </Button>
         )}
       </div>
-      {pine ? (
-        <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre">{pine}</pre>
+      {pine !== null ? (
+        pine.length > 0
+          ? <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre">{pine}</pre>
+          : <p className="text-xs text-muted-foreground italic">No code was returned. Try again.</p>
       ) : (
         <div className="bg-muted/30 border border-border rounded-lg p-4 flex flex-col items-start gap-2">
           <p className="text-xs text-muted-foreground">Generate a Pine Script v5 implementation of this strategy.</p>
@@ -91,6 +105,7 @@ function PineScriptPanel({ name, definition, summary }: { name: string; definiti
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Code2 className="h-3.5 w-3.5" />}
             {generating ? "Generating…" : "Generate Pine Script"}
           </Button>
+          {genError && <p className="text-xs text-destructive">{genError}</p>}
         </div>
       )}
     </section>
