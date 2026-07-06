@@ -7,13 +7,16 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   GripVertical, TrendingUp, Bell, Receipt,
-  CalendarCheck, Lightbulb, Eye, Send, Check,
+  CalendarCheck, Lightbulb, Eye, Send, Check, Timer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type WidgetKey, type DashboardPrefs,
   DEFAULT_PREFS, loadPrefs, savePrefs,
 } from "@/lib/dashboard-widgets";
+import {
+  TIMEOUT_STORAGE_KEY, DEFAULT_TIMEOUT_MIN,
+} from "@/components/session/SessionGuard";
 
 // ─── Widget metadata ──────────────────────────────────────────────────────────
 
@@ -64,6 +67,7 @@ export function DashboardPreferences({ open, onClose }: Props) {
   const [testSending, setTestSending] = useState(false);
   const [testSent, setTestSent]       = useState(false);
   const [testError, setTestError]     = useState<string | null>(null);
+  const [timeoutMin, setTimeoutMin]   = useState(DEFAULT_TIMEOUT_MIN);
 
   // Re-load from localStorage + fetch email prefs every time the dialog opens
   useEffect(() => {
@@ -71,6 +75,8 @@ export function DashboardPreferences({ open, onClose }: Props) {
     setPrefs(loadPrefs());
     setTestSent(false);
     setTestError(null);
+    const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY);
+    setTimeoutMin(stored ? parseInt(stored, 10) : DEFAULT_TIMEOUT_MIN);
 
     fetch("/api/notification-prefs")
       .then(r => r.ok ? r.json() : null)
@@ -107,6 +113,7 @@ export function DashboardPreferences({ open, onClose }: Props) {
 
   async function save() {
     savePrefs(prefs);
+    localStorage.setItem(TIMEOUT_STORAGE_KEY, String(timeoutMin));
     try {
       await fetch("/api/notification-prefs", {
         method: "POST",
@@ -119,6 +126,7 @@ export function DashboardPreferences({ open, onClose }: Props) {
 
   function reset() {
     setPrefs(DEFAULT_PREFS);
+    setTimeoutMin(DEFAULT_TIMEOUT_MIN);
   }
 
   async function sendTestEmail() {
@@ -331,6 +339,40 @@ export function DashboardPreferences({ open, onClose }: Props) {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Session timeout */}
+            <div>
+              <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                <Timer className="h-4 w-4 text-muted-foreground" /> Security
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Automatically sign out after this period of inactivity.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: "10 min", value: 10  },
+                  { label: "15 min", value: 15  },
+                  { label: "30 min", value: 30  },
+                  { label: "1 hour", value: 60  },
+                  { label: "2 hours", value: 120 },
+                  { label: "4 hours", value: 240 },
+                  { label: "8 hours", value: 480 },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setTimeoutMin(opt.value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                      timeoutMin === opt.value
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
           </div>
