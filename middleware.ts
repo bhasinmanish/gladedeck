@@ -31,21 +31,28 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Webhooks and public API routes bypass auth
-  if (pathname.startsWith("/api/webhooks")) return supabaseResponse;
-
-  const isAuthRoute = pathname === "/login";
-
-  if (!user && !isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+  // Bypass auth check for webhooks and the OAuth callback route
+  if (pathname.startsWith("/api/webhooks") || pathname.startsWith("/auth/")) {
+    return supabaseResponse;
   }
 
-  if (user && isAuthRoute) {
+  const isLoginPage = pathname === "/login";
+
+  if (!user && !isLoginPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    const redirectRes = NextResponse.redirect(url);
+    // Forward any refreshed session cookies so they aren't lost
+    supabaseResponse.cookies.getAll().forEach(c => redirectRes.cookies.set(c));
+    return redirectRes;
+  }
+
+  if (user && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    const redirectRes = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach(c => redirectRes.cookies.set(c));
+    return redirectRes;
   }
 
   return supabaseResponse;
