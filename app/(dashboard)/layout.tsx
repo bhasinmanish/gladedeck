@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/nav/Navbar";
+import { SessionGuard } from "@/components/session/SessionGuard";
 
 export default async function DashboardLayout({
   children,
@@ -15,9 +16,11 @@ export default async function DashboardLayout({
   if (!user) redirect("/login");
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar user={user} />
-      <main className="flex-1 overflow-hidden">{children}</main>
-    </div>
+    <SessionGuard>
+      <div className="flex flex-col min-h-screen">
+        <Navbar user={user} />
+        <main className="flex-1 overflow-hidden">{children}</main>
+      </div>
+    </SessionGuard>
   );
 }
