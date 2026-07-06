@@ -8,10 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AddTradeDialog } from "@/components/trades/AddTradeDialog";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Trade } from "@/lib/types";
+import type { Trade, Strategy } from "@/lib/types";
 
 interface Props {
   trades: Trade[];
+  strategies: Pick<Strategy, "id" | "name">[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -30,7 +31,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-export function TradeTable({ trades: initial }: Props) {
+export function TradeTable({ trades: initial, strategies }: Props) {
   const [trades, setTrades] = useState<Trade[]>(initial);
   const [dialogOpen, setDialogOpen]   = useState(false);
   const [deletingId, setDeletingId]   = useState<string | null>(null);
@@ -144,7 +145,9 @@ export function TradeTable({ trades: initial }: Props) {
                       {TYPE_LABELS[t.trade_type] ?? t.trade_type}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{t.entry_date}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(t.entry_date.slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm">${t.entry_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     {t.exit_price != null ? `$${t.exit_price.toFixed(2)}` : <span className="text-muted-foreground">Open</span>}
@@ -180,6 +183,7 @@ export function TradeTable({ trades: initial }: Props) {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onAdded={handleAdded}
+        strategies={strategies}
       />
     </div>
   );
