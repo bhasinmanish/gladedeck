@@ -31,11 +31,8 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
     const EVENTS = ["mousemove", "keydown", "click", "scroll", "touchstart"] as const;
 
     function onActivity() {
+      if (warningActive.current) return; // ignore activity while warning is visible
       lastActivity.current = Date.now();
-      if (warningActive.current) {
-        warningActive.current = false;
-        setShowWarning(false);
-      }
     }
 
     EVENTS.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
