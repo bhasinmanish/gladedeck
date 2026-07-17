@@ -7,8 +7,9 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   GripVertical, TrendingUp, Bell, Receipt,
-  CalendarCheck, Lightbulb, Eye, Send, Check, Timer,
+  CalendarCheck, Lightbulb, Eye, Send, Check, Timer, Plug,
 } from "lucide-react";
+import { SchwabConnect } from "@/components/brokers/SchwabConnect";
 import { cn } from "@/lib/utils";
 import {
   type WidgetKey, type DashboardPrefs,
@@ -339,6 +340,17 @@ export function DashboardPreferences({ open, onClose }: Props) {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Broker connections */}
+            <div>
+              <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                <Plug className="h-4 w-4 text-muted-foreground" /> Connected Accounts
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Link your broker to auto-import trades into your Trade Log.
+              </p>
+              <SchwabConnect />
             </div>
 
             {/* Session timeout */}
