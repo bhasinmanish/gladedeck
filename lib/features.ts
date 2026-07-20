@@ -4,6 +4,9 @@
 
 export const ADMIN_EMAIL = "manshabhasin9@gmail.com";
 
+// Special "feature" key: an active subscription to this unlocks everything.
+export const BUNDLE_KEY = "all_access";
+
 export interface FeatureDef {
   key:         string;
   name:        string;
@@ -12,6 +15,7 @@ export interface FeatureDef {
 }
 
 export const FEATURES: FeatureDef[] = [
+  { key: BUNDLE_KEY,     name: "All-Access Bundle",     description: "One subscription that unlocks every premium feature below." },
   { key: "scanner",      name: "Market Scanner",        description: "Daily gap / RVOL scanner and custom filter presets.", route: "/scanner" },
   { key: "charts",       name: "Charts",                description: "TradingView charts and watchlist workspace.",         route: "/charts" },
   { key: "pine_script",  name: "Pine Script Generator", description: "AI-generated Pine Script & ThinkScript indicators." },
