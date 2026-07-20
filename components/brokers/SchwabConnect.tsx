@@ -101,13 +101,13 @@ export function SchwabConnect() {
       const res  = await fetch("/api/brokers/schwab/sync", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ days: 90 }),
+        body:    JSON.stringify({ days: 60 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Sync failed");
       setSyncResult(
         data.synced > 0
-          ? `Synced ${data.synced} new trade${data.synced !== 1 ? "s" : ""} from the last 90 days.`
+          ? `Synced ${data.synced} new trade${data.synced !== 1 ? "s" : ""} from the last 60 days.`
           : data.message ?? "No new trades found."
       );
     } catch (e) {
@@ -230,7 +230,7 @@ export function SchwabConnect() {
 
       {connected && (
         <p className="text-[10px] text-muted-foreground">
-          Syncs filled orders from the last 90 days into your Trade Log.
+          Syncs filled orders from the last 60 days into your Trade Log.
           Existing trades are not duplicated.
         </p>
       )}
