@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkFeature } from "@/lib/feature-access";
 import { getValidAccessToken, getOrders, getAccountNumbers, mapOrderToTrade } from "@/lib/schwab";
 
 // Composite key for de-duplicating trades across re-syncs.
@@ -11,6 +12,9 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await checkFeature("broker_sync", user);
+  if (gate.locked) return NextResponse.json({ error: "Broker integration is a premium feature." }, { status: 403 });
 
   // How many days back to sync (default 90)
   const body = await request.json().catch(() => ({}));

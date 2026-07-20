@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Link2, Link2Off, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Link2, Link2Off, RefreshCw, CheckCircle2, AlertCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Connection {
@@ -19,15 +19,27 @@ export function SchwabConnect() {
   const [syncing,    setSyncing]    = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error,      setError]      = useState<string | null>(null);
+  const [locked,     setLocked]     = useState(false);
+  const [price,      setPrice]      = useState(0);
 
   useEffect(() => {
     checkStatus();
+
+    // Check whether broker integration is locked for this user
+    fetch("/api/features")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const f = data?.features?.broker_sync;
+        if (f) { setLocked(f.locked); setPrice(f.price); }
+      })
+      .catch(() => {});
 
     // Show result from OAuth redirect query param
     const params = new URLSearchParams(window.location.search);
     const schwab = params.get("schwab");
     if (schwab === "connected") setSyncResult("Schwab connected successfully.");
     if (schwab === "error")     setError("Failed to connect Schwab. Try again.");
+    if (schwab === "locked")    setError("Broker integration is a premium feature.");
     if (schwab) {
       // Clean the URL
       const url = new URL(window.location.href);
@@ -89,6 +101,22 @@ export function SchwabConnect() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
         <Loader2 className="h-4 w-4 animate-spin" /> Checking connection…
+      </div>
+    );
+  }
+
+  if (locked) {
+    return (
+      <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
+        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <Lock className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">Broker integration is premium</p>
+          <p className="text-[11px] text-muted-foreground">
+            Unlock Schwab sync for ${price.toFixed(2)} — purchasing coming soon.
+          </p>
+        </div>
       </div>
     );
   }

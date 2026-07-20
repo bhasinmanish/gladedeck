@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BarChart2, LogOut, SlidersHorizontal, ShieldCheck } from "lucide-react";
+import { BarChart2, LogOut, SlidersHorizontal, ShieldCheck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
 import { DashboardPreferences } from "@/components/dashboard/DashboardPreferences";
+import { featureByRoute } from "@/lib/features";
 
 interface NavItem {
   label: string;
@@ -32,6 +33,22 @@ export function Navbar({ user }: { user: User }) {
   const router = useRouter();
   const supabase = createClient();
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [lockedRoutes, setLockedRoutes] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch("/api/features")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.features) return;
+        const routes = new Set<string>();
+        NAV_ITEMS.forEach(item => {
+          const def = featureByRoute(item.href);
+          if (def && data.features[def.key]?.locked) routes.add(item.href);
+        });
+        setLockedRoutes(routes);
+      })
+      .catch(() => {});
+  }, []);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -49,18 +66,20 @@ export function Navbar({ user }: { user: User }) {
         <div className="flex items-center gap-1 min-w-max">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
+            const isLocked = lockedRoutes.has(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                  "relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5",
                   active
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
                 {item.label}
+                {isLocked && <Lock className="h-3 w-3 opacity-60" />}
               </Link>
             );
           })}

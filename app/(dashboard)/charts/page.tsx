@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { checkFeature } from "@/lib/feature-access";
+import { FeatureLocked } from "@/components/FeatureLocked";
 import { WatchlistSidebar } from "@/components/charts/WatchlistSidebar";
 import { TradingViewChart } from "@/components/charts/TradingViewChart";
 import { PineScriptPanel } from "@/components/charts/PineScriptPanel";
@@ -11,6 +13,11 @@ export default async function ChartsPage({
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  const gate = await checkFeature("charts", user);
+  if (gate.locked) return <FeatureLocked name="Charts" price={gate.price} />;
+
+  const pineGate = await checkFeature("pine_script", user);
 
   const [{ data: watchlists }, { data: priceAlerts }] = await Promise.all([
     supabase
@@ -35,7 +42,7 @@ export default async function ChartsPage({
       <div className="flex-1 flex flex-col min-w-0">
         <TradingViewChart symbol={searchParams.symbol} />
       </div>
-      <PineScriptPanel />
+      <PineScriptPanel locked={pineGate.locked} price={pineGate.price} />
     </div>
   );
 }

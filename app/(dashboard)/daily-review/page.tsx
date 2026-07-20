@@ -1,10 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
+import { checkFeature } from "@/lib/feature-access";
+import { FeatureLocked } from "@/components/FeatureLocked";
 import { DailyReviewWorkspace } from "@/components/daily-review/DailyReviewWorkspace";
 import type { Trade, DailySummary } from "@/lib/types";
 
 export default async function DailyReviewPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  const gate = await checkFeature("daily_review", user);
+  if (gate.locked) return <FeatureLocked name="Daily Review" price={gate.price} />;
+
   const today = new Date().toISOString().split("T")[0];
 
   const [{ data: trades }, { data: summary }] = await Promise.all([
