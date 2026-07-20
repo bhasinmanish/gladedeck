@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   Users, TrendingUp, Bell, BellRing, Eye, Lightbulb,
-  CalendarCheck, BarChart2, ChevronRight, Loader2, ShieldCheck,
+  CalendarCheck, BarChart2, ChevronRight, Loader2, ShieldCheck, Tag,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { FeaturePricing } from "@/components/admin/FeaturePricing";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -209,9 +211,10 @@ export function AdminPortal() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      <Tabs defaultValue="accounts" className="flex flex-col h-full">
 
       {/* Header */}
-      <div className="px-4 md:px-6 py-3 border-b border-border shrink-0 flex items-center gap-2">
+      <div className="px-4 md:px-6 py-3 border-b border-border shrink-0 flex items-center gap-3">
         <ShieldCheck className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Admin Portal</h1>
         {!loading && (
@@ -219,8 +222,17 @@ export function AdminPortal() {
             {users.length} account{users.length !== 1 ? "s" : ""}
           </span>
         )}
+        <TabsList className="h-8 ml-auto shrink-0">
+          <TabsTrigger value="accounts" className="text-xs gap-1.5">
+            <Users className="h-3.5 w-3.5" /> Accounts
+          </TabsTrigger>
+          <TabsTrigger value="pricing" className="text-xs gap-1.5">
+            <Tag className="h-3.5 w-3.5" /> Feature Pricing
+          </TabsTrigger>
+        </TabsList>
       </div>
 
+      <TabsContent value="accounts" className="flex-1 min-h-0 overflow-hidden mt-0 data-[state=active]:flex flex-col">
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -265,6 +277,13 @@ export function AdminPortal() {
 
         </div>
       )}
+      </TabsContent>
+
+      <TabsContent value="pricing" className="flex-1 min-h-0 overflow-hidden mt-0 data-[state=active]:flex flex-col">
+        <FeaturePricing />
+      </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

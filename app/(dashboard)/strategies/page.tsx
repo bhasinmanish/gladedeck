@@ -1,10 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
+import { checkFeature } from "@/lib/feature-access";
+import { FeatureLocked } from "@/components/FeatureLocked";
 import { StrategiesPage } from "@/components/strategies/StrategiesPage";
 import type { Strategy, TradeIdea, Trade } from "@/lib/types";
 
 export default async function StrategiesRoute() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  const gate = await checkFeature("strategies", user);
+  if (gate.locked) return <FeatureLocked name="Strategies" price={gate.price} />;
 
   const [
     { data: strategies },

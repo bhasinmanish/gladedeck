@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Code2, Copy, Check, Loader2, Trash2, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Code2, Copy, Check, Loader2, Trash2, Save, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ function SavedRow({
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export function PineScriptPanel() {
+export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolean; price?: number }) {
   const [prompt, setPrompt]     = useState("");
   const [language, setLanguage] = useState<"pine" | "thinkscript">("pine");
   const [output, setOutput]     = useState("");
@@ -171,8 +171,37 @@ export function PineScriptPanel() {
           title="Open Pine Script generator"
           className="p-2 rounded-md hover:bg-accent/50 transition-colors"
         >
-          <Code2 className="h-4 w-4 text-muted-foreground" />
+          {locked
+            ? <Lock className="h-4 w-4 text-muted-foreground" />
+            : <Code2 className="h-4 w-4 text-muted-foreground" />}
         </button>
+      </div>
+    );
+  }
+
+  if (locked) {
+    return (
+      <div className="w-80 border-l border-border flex flex-col shrink-0">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Code2 className="h-4 w-4 text-primary" />
+            Script Generator
+          </span>
+          <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6 text-center">
+          <div className="space-y-3">
+            <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <p className="text-sm font-medium">Premium feature</p>
+            <p className="text-xs text-muted-foreground max-w-[200px]">
+              Unlock the Pine Script generator for ${price.toFixed(2)}. Purchasing is coming soon.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
