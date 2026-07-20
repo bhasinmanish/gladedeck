@@ -45,3 +45,23 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
 }
+
+// Bulk-delete the user's trades. ?scope=all clears everything; ?scope=synced
+// clears only broker-imported (Schwab) trades.
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const scope = new URL(request.url).searchParams.get("scope") ?? "all";
+
+  let query = supabase.from("trades").delete().eq("user_id", user.id);
+  if (scope === "synced") query = query.eq("source", "schwab");
+
+  const { error, count } = await query.select("id", { count: "exact" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ deleted: count ?? 0 });
+}

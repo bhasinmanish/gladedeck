@@ -3,11 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { checkFeature } from "@/lib/feature-access";
 import { getValidAccessToken, getOrders, getAccountNumbers, mapOrderToTrade } from "@/lib/schwab";
 
-// Composite key for de-duplicating trades across re-syncs.
-function tradeKey(t: { symbol: string; entry_date: string; entry_price: number; qty: number; side: string }) {
-  return `${t.symbol}|${t.entry_date}|${t.entry_price}|${t.qty}|${t.side}`;
-}
-
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -65,29 +60,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ synced: 0, message: "No filled orders found in range." });
     }
 
-    // De-dupe against trades already saved (both against the DB and within this batch).
-    const { data: existing } = await supabase
-      .from("trades")
-      .select("symbol, entry_date, entry_price, qty, side")
-      .eq("user_id", user.id)
-      .eq("source", "schwab");
-
-    const seen = new Set((existing ?? []).map(tradeKey));
-
-    const toInsert = mapped.filter(t => {
-      const key = tradeKey(t);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    if (toInsert.length === 0) {
-      return NextResponse.json({ synced: 0, message: "All trades already imported." });
+    // De-dupe within this batch by Schwab order id.
+    const byOrderId = new Map<string, (typeof mapped)[number]>();
+    for (const t of mapped) {
+      if (t.broker_order_id) byOrderId.set(t.broker_order_id, t);
     }
+    const toInsert = Array.from(byOrderId.values());
 
+    // Upsert on (user_id, broker_order_id): re-syncing the same orders is a
+    // no-op, so trades are never duplicated. Requires the unique constraint.
     const { data: inserted, error } = await supabase
       .from("trades")
-      .insert(toInsert)
+      .upsert(toInsert, { onConflict: "user_id,broker_order_id", ignoreDuplicates: true })
       .select();
 
     if (error) throw new Error(error.message);
