@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getValidAccessToken, getOrders, mapOrderToTrade } from "@/lib/schwab";
+import { getValidAccessToken, getOrders, getAccounts, mapOrderToTrade } from "@/lib/schwab";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -19,11 +19,29 @@ export async function POST(request: NextRequest) {
       .eq("broker", "schwab")
       .single();
 
-    if (!conn?.account_hash) {
+    if (!conn) {
       return NextResponse.json({ error: "Schwab account not connected" }, { status: 400 });
     }
 
     const accessToken = await getValidAccessToken(user.id);
+
+    // If account_hash is missing (e.g. wasn't captured during OAuth), fetch and save it now
+    let accountHash = conn.account_hash;
+    if (!accountHash) {
+      const accounts = await getAccounts(accessToken);
+      accountHash = accounts?.[0]?.hashValue ?? null;
+      if (accountHash) {
+        await supabase
+          .from("broker_connections")
+          .update({ account_hash: accountHash })
+          .eq("user_id", user.id)
+          .eq("broker", "schwab");
+      }
+    }
+
+    if (!accountHash) {
+      return NextResponse.json({ error: "Could not retrieve Schwab account. Make sure your account is active." }, { status: 400 });
+    }
 
     const toDate   = new Date();
     const fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000);
@@ -32,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const orders = await getOrders(
       accessToken,
-      conn.account_hash,
+      accountHash,
       fmt(fromDate),
       fmt(toDate),
     );
