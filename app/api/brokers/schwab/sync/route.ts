@@ -16,9 +16,10 @@ export async function POST(request: NextRequest) {
   const gate = await checkFeature("broker_sync", user);
   if (gate.locked) return NextResponse.json({ error: "Broker integration is a premium feature." }, { status: 403 });
 
-  // How many days back to sync (default 90)
+  // How many days back to sync. Schwab only allows dates within 60 days
+  // of today, so cap the lookback there.
   const body = await request.json().catch(() => ({}));
-  const days: number = body.days ?? 90;
+  const days = Math.min(Number(body.days) || 60, 60);
 
   try {
     const { data: conn } = await supabase
@@ -45,7 +46,9 @@ export async function POST(request: NextRequest) {
 
     const toDate   = new Date();
     const fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000);
-    const fmt = (d: Date) => d.toISOString().replace("Z", "+0000");
+    // Schwab expects ISO-8601 like yyyy-MM-dd'T'HH:mm:ss.SSSZ — exactly what
+    // toISOString() produces. (Do NOT rewrite the trailing "Z".)
+    const fmt = (d: Date) => d.toISOString();
 
     // Pull filled orders from all accounts and map them to trades.
     const mapped: NonNullable<ReturnType<typeof mapOrderToTrade>>[] = [];
