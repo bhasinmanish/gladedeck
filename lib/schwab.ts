@@ -176,19 +176,21 @@ export function mapOrderToTrade(order: SchwabOrder, userId: string) {
   const entryDate = fill?.time ?? order.enteredTime ?? order.closeTime ?? new Date().toISOString();
 
   return {
-    user_id:      userId,
-    symbol:       leg.instrument.symbol,
-    side:         isBuy ? "long" : "short",
-    trade_type:   "day_trade" as const,
-    entry_date:   entryDate,
-    entry_price:  price,
-    exit_price:   null,
-    exit_date:    null,
-    qty:          leg.quantity,
-    pnl:          null,
-    setup_notes:  null,
-    strategy_id:  null,
-    account:      "schwab",
-    source:       "schwab" as const,
+    user_id:         userId,
+    symbol:          leg.instrument.symbol,
+    side:            isBuy ? "long" : "short",
+    trade_type:      "day_trade" as const,
+    entry_date:      entryDate,
+    entry_price:     price,
+    exit_price:      null,
+    exit_date:       null,
+    qty:             leg.quantity,
+    pnl:             null,
+    setup_notes:     null,
+    strategy_id:     null,
+    account:         "schwab",
+    source:          "schwab" as const,
+    // Stable Schwab order id — used to prevent duplicate imports on re-sync.
+    broker_order_id: order.orderId != null ? String(order.orderId) : null,
   };
 }

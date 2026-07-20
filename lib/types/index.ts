@@ -87,6 +87,7 @@ export interface Trade {
   what_went_wrong: string | null;
   what_to_change: string | null;
   source: TradeSource;
+  broker_order_id: string | null;
   created_at: string;
 }
 

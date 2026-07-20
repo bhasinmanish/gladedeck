@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AddTradeDialog } from "@/components/trades/AddTradeDialog";
-import { Plus, Trash2, Pencil, Search, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Search, ChevronUp, ChevronDown, ChevronsUpDown, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Trade, Strategy } from "@/lib/types";
 
@@ -80,6 +81,10 @@ export function TradeTable({ trades: initial, strategies }: Props) {
   const [dialogOpen, setDialogOpen]     = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [deletingId, setDeletingId]     = useState<string | null>(null);
+  const [clearOpen, setClearOpen]       = useState(false);
+  const [clearing, setClearing]         = useState<null | "all" | "synced">(null);
+
+  const schwabCount = trades.filter(t => t.source === "schwab").length;
 
   // ── Filters & sorting ───────────────────────────────────────────────────────
 
@@ -159,6 +164,19 @@ export function TradeTable({ trades: initial, strategies }: Props) {
       if (res.ok) setTrades(prev => prev.filter(t => t.id !== id));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function clearHistory(scope: "all" | "synced") {
+    setClearing(scope);
+    try {
+      const res = await fetch(`/api/trades?scope=${scope}`, { method: "DELETE" });
+      if (res.ok) {
+        setTrades(prev => scope === "all" ? [] : prev.filter(t => t.source !== "schwab"));
+        setClearOpen(false);
+      }
+    } finally {
+      setClearing(null);
     }
   }
 
@@ -257,10 +275,19 @@ export function TradeTable({ trades: initial, strategies }: Props) {
           </Button>
         )}
 
-        <div className="ml-auto flex items-center gap-3">
-          <p className="text-xs text-muted-foreground">
+        <div className="ml-auto flex items-center gap-2">
+          <p className="text-xs text-muted-foreground mr-1">
             {hasFilters ? `${visible.length} of ${trades.length}` : `${trades.length} trade${trades.length !== 1 ? "s" : ""}`}
           </p>
+          {trades.length > 0 && (
+            <Button
+              variant="outline" size="sm"
+              className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
+              onClick={() => setClearOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Clear history
+            </Button>
+          )}
           <Button size="sm" onClick={() => { setEditingTrade(null); setDialogOpen(true); }} className="gap-2">
             <Plus className="h-4 w-4" /> Log Trade
           </Button>
@@ -372,6 +399,47 @@ export function TradeTable({ trades: initial, strategies }: Props) {
         strategies={strategies}
         initialTrade={editingTrade}
       />
+
+      {/* Clear history confirmation */}
+      <Dialog open={clearOpen} onOpenChange={v => { if (!clearing) setClearOpen(v); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Clear trade history</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Permanently delete trades from your log. This can&apos;t be undone.
+          </p>
+          <div className="space-y-2 py-1">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => clearHistory("synced")}
+              disabled={clearing !== null || schwabCount === 0}
+            >
+              {clearing === "synced"
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Trash2 className="h-4 w-4" />}
+              Clear synced Schwab trades only ({schwabCount})
+            </Button>
+            <Button
+              variant="destructive"
+              className="w-full justify-start gap-2"
+              onClick={() => clearHistory("all")}
+              disabled={clearing !== null}
+            >
+              {clearing === "all"
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Trash2 className="h-4 w-4" />}
+              Delete all {trades.length} trades
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setClearOpen(false)} disabled={clearing !== null}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
