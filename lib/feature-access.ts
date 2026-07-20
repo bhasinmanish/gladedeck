@@ -2,7 +2,7 @@
 // `feature_subscriptions` tables and applies the admin bypass.
 
 import { createClient } from "@/lib/supabase/server";
-import { ADMIN_EMAIL } from "@/lib/features";
+import { ADMIN_EMAIL, BUNDLE_KEY } from "@/lib/features";
 
 export interface GateResult {
   locked: boolean;
@@ -31,16 +31,16 @@ export async function checkFeature(key: string, user: MaybeUser): Promise<GateRe
 
   const price = Number(setting.price);
 
-  // Paid → unlocked only if the user holds an active subscription for it.
+  // Paid → unlocked if the user holds an active subscription for this
+  // feature specifically, OR the all-access bundle.
   if (user?.id) {
-    const { data: sub } = await supabase
+    const { data: subs } = await supabase
       .from("feature_subscriptions")
-      .select("status")
+      .select("feature_key")
       .eq("user_id", user.id)
-      .eq("feature_key", key)
-      .in("status", ACTIVE_STATUSES)
-      .maybeSingle();
-    if (sub) return { locked: false, price };
+      .in("feature_key", [key, BUNDLE_KEY])
+      .in("status", ACTIVE_STATUSES);
+    if (subs && subs.length > 0) return { locked: false, price };
   }
 
   return { locked: true, price };
@@ -64,10 +64,11 @@ export async function getUserFeatureState(user: MaybeUser) {
   ]);
 
   const subscribed = new Set((subsRes.data ?? []).map(s => s.feature_key));
+  const hasBundle  = subscribed.has(BUNDLE_KEY);
 
   const features: Record<string, { is_paid: boolean; price: number; locked: boolean; subscribed: boolean }> = {};
   (settings ?? []).forEach(r => {
-    const isSub = subscribed.has(r.key);
+    const isSub = subscribed.has(r.key) || (r.key !== BUNDLE_KEY && hasBundle);
     features[r.key] = {
       is_paid:    r.is_paid,
       price:      Number(r.price),

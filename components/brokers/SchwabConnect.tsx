@@ -21,7 +21,8 @@ export function SchwabConnect() {
   const [error,      setError]      = useState<string | null>(null);
   const [locked,     setLocked]     = useState(false);
   const [price,      setPrice]      = useState(0);
-  const [subscribing, setSubscribing] = useState(false);
+  const [bundlePrice, setBundlePrice] = useState<number | null>(null);
+  const [subscribing, setSubscribing] = useState<null | "feature" | "bundle">(null);
 
   useEffect(() => {
     checkStatus();
@@ -32,6 +33,8 @@ export function SchwabConnect() {
       .then(data => {
         const f = data?.features?.broker_sync;
         if (f) { setLocked(f.locked); setPrice(f.price); }
+        const b = data?.features?.all_access;
+        if (b?.is_paid) setBundlePrice(b.price);
       })
       .catch(() => {});
 
@@ -65,19 +68,19 @@ export function SchwabConnect() {
     window.location.href = "/api/brokers/schwab/connect";
   }
 
-  async function subscribe() {
-    setSubscribing(true);
+  async function subscribe(key: string, which: "feature" | "bundle") {
+    setSubscribing(which);
     try {
       const res  = await fetch("/api/billing/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ feature_key: "broker_sync" }),
+        body:    JSON.stringify({ feature_key: key }),
       });
       const data = await res.json();
       if (res.ok && data.url) window.location.href = data.url;
-      else setSubscribing(false);
+      else setSubscribing(null);
     } catch {
-      setSubscribing(false);
+      setSubscribing(null);
     }
   }
 
@@ -124,22 +127,30 @@ export function SchwabConnect() {
 
   if (locked) {
     return (
-      <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
-        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <Lock className="h-4 w-4 text-primary" />
+      <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Lock className="h-4 w-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Broker integration is premium</p>
+            <p className="text-[11px] text-muted-foreground">
+              Subscribe to unlock Schwab account sync.
+            </p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">Broker integration is premium</p>
-          <p className="text-[11px] text-muted-foreground">
-            Subscribe to unlock Schwab account sync.
-          </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => subscribe("broker_sync", "feature")} disabled={subscribing !== null} className="gap-1.5">
+            {subscribing === "feature" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Subscribe · ${price.toFixed(2)}/mo
+          </Button>
+          {bundlePrice !== null && (
+            <Button size="sm" variant="outline" onClick={() => subscribe("all_access", "bundle")} disabled={subscribing !== null} className="gap-1.5">
+              {subscribing === "bundle" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              Unlock all · ${bundlePrice.toFixed(2)}/mo
+            </Button>
+          )}
         </div>
-        <Button size="sm" onClick={subscribe} disabled={subscribing} className="shrink-0 gap-1.5">
-          {subscribing
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : null}
-          ${price.toFixed(2)}/mo
-        </Button>
       </div>
     );
   }

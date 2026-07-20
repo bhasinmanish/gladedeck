@@ -100,13 +100,25 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
 
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving]     = useState(false);
-  const [subscribing, setSubscribing] = useState(false);
+  const [subscribing, setSubscribing] = useState<null | "feature" | "bundle">(null);
+  const [bundlePrice, setBundlePrice] = useState<number | null>(null);
 
   const [saved, setSaved]       = useState<SavedScript[]>([]);
 
   useEffect(() => {
     setSaved(loadScripts());
   }, []);
+
+  useEffect(() => {
+    if (!locked) return;
+    fetch("/api/features")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const b = data?.features?.all_access;
+        if (b?.is_paid) setBundlePrice(b.price);
+      })
+      .catch(() => {});
+  }, [locked]);
 
   async function generate() {
     if (!prompt.trim()) return;
@@ -164,19 +176,19 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
     setSaved(next);
   }
 
-  async function subscribe() {
-    setSubscribing(true);
+  async function subscribe(key: string, which: "feature" | "bundle") {
+    setSubscribing(which);
     try {
       const res  = await fetch("/api/billing/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ feature_key: "pine_script" }),
+        body:    JSON.stringify({ feature_key: key }),
       });
       const data = await res.json();
       if (res.ok && data.url) window.location.href = data.url;
-      else setSubscribing(false);
+      else setSubscribing(null);
     } catch {
-      setSubscribing(false);
+      setSubscribing(null);
     }
   }
 
@@ -217,15 +229,28 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
             <p className="text-xs text-muted-foreground max-w-[200px]">
               Subscribe to unlock the Pine Script generator.
             </p>
-            <button
-              onClick={subscribe}
-              disabled={subscribing}
-              className="mt-1 rounded-md bg-primary text-primary-foreground text-xs font-medium px-4 py-2 hover:bg-primary/90 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
-            >
-              {subscribing
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Redirecting…</>
-                : `Subscribe · $${price.toFixed(2)}/mo`}
-            </button>
+            <div className="flex flex-col gap-2 mt-1 w-full max-w-[220px]">
+              <button
+                onClick={() => subscribe("pine_script", "feature")}
+                disabled={subscribing !== null}
+                className="rounded-md bg-primary text-primary-foreground text-xs font-medium px-4 py-2 hover:bg-primary/90 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-1.5"
+              >
+                {subscribing === "feature"
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Redirecting…</>
+                  : `Subscribe · $${price.toFixed(2)}/mo`}
+              </button>
+              {bundlePrice !== null && (
+                <button
+                  onClick={() => subscribe("all_access", "bundle")}
+                  disabled={subscribing !== null}
+                  className="rounded-md border border-primary/40 text-foreground text-xs font-medium px-4 py-2 hover:bg-primary/5 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-1.5"
+                >
+                  {subscribing === "bundle"
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Redirecting…</>
+                    : `Unlock all · $${bundlePrice.toFixed(2)}/mo`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
