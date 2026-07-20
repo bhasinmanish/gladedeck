@@ -9,7 +9,7 @@ export default async function DailyReviewPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("daily_review", user);
-  if (gate.locked) return <FeatureLocked name="Daily Review" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Daily Review" price={gate.price} featureKey="daily_review" />;
 
   const today = new Date().toISOString().split("T")[0];
 

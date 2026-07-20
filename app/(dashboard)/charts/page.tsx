@@ -15,7 +15,7 @@ export default async function ChartsPage({
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("charts", user);
-  if (gate.locked) return <FeatureLocked name="Charts" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Charts" price={gate.price} featureKey="charts" />;
 
   const pineGate = await checkFeature("pine_script", user);
 

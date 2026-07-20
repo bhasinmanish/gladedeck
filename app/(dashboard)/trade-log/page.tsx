@@ -9,7 +9,7 @@ export default async function TradeLogPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("trade_log", user);
-  if (gate.locked) return <FeatureLocked name="Trade Log" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Trade Log" price={gate.price} featureKey="trade_log" />;
 
   const [{ data: trades }, { data: strategies }] = await Promise.all([
     supabase

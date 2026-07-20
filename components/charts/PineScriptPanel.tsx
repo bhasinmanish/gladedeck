@@ -100,6 +100,7 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
 
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving]     = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   const [saved, setSaved]       = useState<SavedScript[]>([]);
 
@@ -163,6 +164,22 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
     setSaved(next);
   }
 
+  async function subscribe() {
+    setSubscribing(true);
+    try {
+      const res  = await fetch("/api/billing/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ feature_key: "pine_script" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) window.location.href = data.url;
+      else setSubscribing(false);
+    } catch {
+      setSubscribing(false);
+    }
+  }
+
   if (!open) {
     return (
       <div className="w-10 border-l border-border flex flex-col items-center py-4">
@@ -198,8 +215,17 @@ export function PineScriptPanel({ locked = false, price = 0 }: { locked?: boolea
             </div>
             <p className="text-sm font-medium">Premium feature</p>
             <p className="text-xs text-muted-foreground max-w-[200px]">
-              Unlock the Pine Script generator for ${price.toFixed(2)}. Purchasing is coming soon.
+              Subscribe to unlock the Pine Script generator.
             </p>
+            <button
+              onClick={subscribe}
+              disabled={subscribing}
+              className="mt-1 rounded-md bg-primary text-primary-foreground text-xs font-medium px-4 py-2 hover:bg-primary/90 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
+            >
+              {subscribing
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Redirecting…</>
+                : `Subscribe · $${price.toFixed(2)}/mo`}
+            </button>
           </div>
         </div>
       </div>

@@ -21,6 +21,7 @@ export function SchwabConnect() {
   const [error,      setError]      = useState<string | null>(null);
   const [locked,     setLocked]     = useState(false);
   const [price,      setPrice]      = useState(0);
+  const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
     checkStatus();
@@ -62,6 +63,22 @@ export function SchwabConnect() {
 
   function connect() {
     window.location.href = "/api/brokers/schwab/connect";
+  }
+
+  async function subscribe() {
+    setSubscribing(true);
+    try {
+      const res  = await fetch("/api/billing/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ feature_key: "broker_sync" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) window.location.href = data.url;
+      else setSubscribing(false);
+    } catch {
+      setSubscribing(false);
+    }
   }
 
   async function disconnect() {
@@ -114,9 +131,15 @@ export function SchwabConnect() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Broker integration is premium</p>
           <p className="text-[11px] text-muted-foreground">
-            Unlock Schwab sync for ${price.toFixed(2)} — purchasing coming soon.
+            Subscribe to unlock Schwab account sync.
           </p>
         </div>
+        <Button size="sm" onClick={subscribe} disabled={subscribing} className="shrink-0 gap-1.5">
+          {subscribing
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : null}
+          ${price.toFixed(2)}/mo
+        </Button>
       </div>
     );
   }

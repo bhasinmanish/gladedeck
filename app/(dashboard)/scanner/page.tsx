@@ -8,7 +8,7 @@ export default async function ScannerPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("scanner", user);
-  if (gate.locked) return <FeatureLocked name="Market Scanner" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Market Scanner" price={gate.price} featureKey="scanner" />;
 
   return (
     <div className="h-full flex flex-col p-4 md:p-6 gap-4 overflow-hidden">

@@ -9,7 +9,7 @@ export default async function AlertsRoute() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("alerts", user);
-  if (gate.locked) return <FeatureLocked name="Alerts" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Alerts" price={gate.price} featureKey="alerts" />;
 
   const [{ data: priceAlerts }, { data: activityAlerts }, { data: watchlists }] =
     await Promise.all([
