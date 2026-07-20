@@ -7,7 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   GripVertical, TrendingUp, Bell, Receipt,
-  CalendarCheck, Lightbulb, Eye, Send, Check, Timer, Plug,
+  CalendarCheck, Lightbulb, Eye, Send, Check, Timer, Plug, CreditCard,
 } from "lucide-react";
 import { SchwabConnect } from "@/components/brokers/SchwabConnect";
 import { cn } from "@/lib/utils";
@@ -69,6 +69,8 @@ export function DashboardPreferences({ open, onClose }: Props) {
   const [testSent, setTestSent]       = useState(false);
   const [testError, setTestError]     = useState<string | null>(null);
   const [timeoutMin, setTimeoutMin]   = useState(DEFAULT_TIMEOUT_MIN);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError]     = useState<string | null>(null);
 
   // Re-load from localStorage + fetch email prefs every time the dialog opens
   useEffect(() => {
@@ -128,6 +130,21 @@ export function DashboardPreferences({ open, onClose }: Props) {
   function reset() {
     setPrefs(DEFAULT_PREFS);
     setTimeoutMin(DEFAULT_TIMEOUT_MIN);
+  }
+
+  async function openBillingPortal() {
+    setPortalLoading(true);
+    setPortalError(null);
+    try {
+      const res  = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      setPortalError(data.error ?? "Could not open billing portal.");
+    } catch {
+      setPortalError("Could not open billing portal.");
+    } finally {
+      setPortalLoading(false);
+    }
   }
 
   async function sendTestEmail() {
@@ -351,6 +368,26 @@ export function DashboardPreferences({ open, onClose }: Props) {
                 Link your broker to auto-import trades into your Trade Log.
               </p>
               <SchwabConnect />
+            </div>
+
+            {/* Billing */}
+            <div>
+              <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                <CreditCard className="h-4 w-4 text-muted-foreground" /> Subscriptions
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Manage or cancel your feature subscriptions and view invoices.
+              </p>
+              <Button
+                variant="outline" size="sm"
+                onClick={openBillingPortal}
+                disabled={portalLoading}
+                className="gap-1.5"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                {portalLoading ? "Opening…" : "Manage subscriptions"}
+              </Button>
+              {portalError && <p className="text-[11px] text-muted-foreground mt-1.5">{portalError}</p>}
             </div>
 
             {/* Session timeout */}

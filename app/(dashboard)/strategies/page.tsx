@@ -9,7 +9,7 @@ export default async function StrategiesRoute() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const gate = await checkFeature("strategies", user);
-  if (gate.locked) return <FeatureLocked name="Strategies" price={gate.price} />;
+  if (gate.locked) return <FeatureLocked name="Strategies" price={gate.price} featureKey="strategies" />;
 
   const [
     { data: strategies },
