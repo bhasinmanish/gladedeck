@@ -123,6 +123,14 @@ export async function getAccounts(accessToken: string) {
   return schwabGet("/accounts?fields=positions", accessToken);
 }
 
+// Returns the account number → hash mapping. The hash is what all other
+// account-scoped endpoints (orders, positions) require in their path.
+export async function getAccountNumbers(accessToken: string) {
+  return schwabGet("/accounts/accountNumbers", accessToken) as Promise<
+    Array<{ accountNumber: string; hashValue: string }>
+  >;
+}
+
 export async function getOrders(
   accessToken: string,
   accountHash: string,
