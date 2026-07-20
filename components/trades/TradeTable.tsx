@@ -33,12 +33,37 @@ function sortValue(t: Trade, key: SortKey): string | number | null {
     case "symbol": return t.symbol;
     case "side":   return t.side;
     case "type":   return t.trade_type;
-    case "date":   return t.entry_date.slice(0, 10);
+    case "date":   return t.entry_date;   // full timestamp → time-precise ordering
     case "entry":  return t.entry_price;
     case "exit":   return t.exit_price;
     case "shares": return t.qty;
     case "pnl":    return t.pnl;
   }
+}
+
+// A date-only (manual) entry is stored at midnight UTC; a real execution
+// timestamp (e.g. from Schwab) has a time component. Show the time only when
+// there is one, so manual trades stay clean and synced trades show their time.
+function formatTradeDate(raw: string): { date: string; time: string | null } {
+  const d = new Date(raw);
+  const date = new Date(raw.slice(0, 10) + "T12:00:00")
+    .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const isMidnightUTC =
+    d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+  const time = isMidnightUTC
+    ? null
+    : d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return { date, time };
+}
+
+function DateCell({ raw }: { raw: string }) {
+  const { date, time } = formatTradeDate(raw);
+  return (
+    <div className="whitespace-nowrap">
+      <span className="text-sm text-muted-foreground">{date}</span>
+      {time && <span className="block text-[10px] text-muted-foreground/70 font-mono">{time}</span>}
+    </div>
+  );
 }
 
 function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -296,8 +321,8 @@ export function TradeTable({ trades: initial, strategies }: Props) {
                       {TYPE_LABELS[t.trade_type] ?? t.trade_type}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                    {new Date(t.entry_date.slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  <TableCell>
+                    <DateCell raw={t.entry_date} />
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">${t.entry_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right font-mono text-sm">

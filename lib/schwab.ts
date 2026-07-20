@@ -171,7 +171,9 @@ export function mapOrderToTrade(order: SchwabOrder, userId: string) {
   const isSell = leg.instruction.includes("SELL");
   if (!isBuy && !isSell) return null;
 
-  const entryDate = (order.enteredTime ?? order.closeTime ?? new Date().toISOString()).slice(0, 10);
+  // Keep the full execution timestamp (prefer the fill time, then order
+  // entered/close time). Stored as timestamptz so the time is preserved.
+  const entryDate = fill?.time ?? order.enteredTime ?? order.closeTime ?? new Date().toISOString();
 
   return {
     user_id:      userId,
