@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { exchangeCodeForTokens, getAccounts } from "@/lib/schwab";
+import { exchangeCodeForTokens, getAccountNumbers } from "@/lib/schwab";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
     const tokens   = await exchangeCodeForTokens(code);
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
-    // Get the first account hash so we can use it for syncing
-    const accounts   = await getAccounts(tokens.access_token);
-    const accountHash = accounts?.[0]?.hashValue ?? null;
+    // Get the first account hash so we can use it for syncing.
+    // (Sync itself re-fetches all account hashes, so this is just for display.)
+    const accountNumbers = await getAccountNumbers(tokens.access_token);
+    const accountHash = accountNumbers?.[0]?.hashValue ?? null;
 
     await supabase.from("broker_connections").upsert({
       user_id:       user.id,

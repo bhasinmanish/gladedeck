@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getValidAccessToken, getOrders, getAccounts, mapOrderToTrade } from "@/lib/schwab";
+import { getValidAccessToken, getOrders, getAccountNumbers, mapOrderToTrade } from "@/lib/schwab";
+
+// Composite key for de-duplicating trades across re-syncs.
+function tradeKey(t: { symbol: string; entry_date: string; entry_price: number; qty: number; side: string }) {
+  return `${t.symbol}|${t.entry_date}|${t.entry_price}|${t.qty}|${t.side}`;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -14,7 +19,7 @@ export async function POST(request: NextRequest) {
   try {
     const { data: conn } = await supabase
       .from("broker_connections")
-      .select("account_hash")
+      .select("id")
       .eq("user_id", user.id)
       .eq("broker", "schwab")
       .single();
@@ -25,61 +30,61 @@ export async function POST(request: NextRequest) {
 
     const accessToken = await getValidAccessToken(user.id);
 
-    // If account_hash is missing (e.g. wasn't captured during OAuth), fetch and save it now
-    let accountHash = conn.account_hash;
-    if (!accountHash) {
-      const accounts = await getAccounts(accessToken);
-      accountHash = accounts?.[0]?.hashValue ?? null;
-      if (accountHash) {
-        await supabase
-          .from("broker_connections")
-          .update({ account_hash: accountHash })
-          .eq("user_id", user.id)
-          .eq("broker", "schwab");
-      }
-    }
-
-    if (!accountHash) {
-      return NextResponse.json({ error: "Could not retrieve Schwab account. Make sure your account is active." }, { status: 400 });
+    // Fetch every account's hash — a Schwab login can hold multiple brokerage accounts.
+    const accountNumbers = await getAccountNumbers(accessToken);
+    if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
+      return NextResponse.json(
+        { error: "No Schwab accounts found on this login. Make sure the account is active and the app has account access." },
+        { status: 400 },
+      );
     }
 
     const toDate   = new Date();
     const fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000);
-
     const fmt = (d: Date) => d.toISOString().replace("Z", "+0000");
 
-    const orders = await getOrders(
-      accessToken,
-      accountHash,
-      fmt(fromDate),
-      fmt(toDate),
-    );
-
-    if (!Array.isArray(orders) || orders.length === 0) {
-      return NextResponse.json({ synced: 0, message: "No filled orders found in range" });
+    // Pull filled orders from all accounts and map them to trades.
+    const mapped: NonNullable<ReturnType<typeof mapOrderToTrade>>[] = [];
+    for (const acct of accountNumbers) {
+      const orders = await getOrders(accessToken, acct.hashValue, fmt(fromDate), fmt(toDate));
+      if (!Array.isArray(orders)) continue;
+      for (const o of orders) {
+        const trade = mapOrderToTrade(o, user.id);
+        if (trade) mapped.push(trade);
+      }
     }
 
-    const trades = orders
-      .map((o: Parameters<typeof mapOrderToTrade>[0]) => mapOrderToTrade(o, user.id))
-      .filter(Boolean);
-
-    if (trades.length === 0) {
-      return NextResponse.json({ synced: 0, message: "No mappable trades found" });
+    if (mapped.length === 0) {
+      return NextResponse.json({ synced: 0, message: "No filled orders found in range." });
     }
 
-    // Upsert by schwab orderId stored in setup_notes to avoid duplicates
-    // We identify duplicates by symbol+entry_date+entry_price+qty+source
+    // De-dupe against trades already saved (both against the DB and within this batch).
+    const { data: existing } = await supabase
+      .from("trades")
+      .select("symbol, entry_date, entry_price, qty, side")
+      .eq("user_id", user.id)
+      .eq("source", "schwab");
+
+    const seen = new Set((existing ?? []).map(tradeKey));
+
+    const toInsert = mapped.filter(t => {
+      const key = tradeKey(t);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (toInsert.length === 0) {
+      return NextResponse.json({ synced: 0, message: "All trades already imported." });
+    }
+
     const { data: inserted, error } = await supabase
       .from("trades")
-      .upsert(trades, {
-        onConflict:        "user_id,symbol,entry_date,entry_price,source",
-        ignoreDuplicates:  true,
-      })
+      .insert(toInsert)
       .select();
 
     if (error) throw new Error(error.message);
 
-    // Update last synced timestamp
     await supabase
       .from("broker_connections")
       .update({ updated_at: new Date().toISOString() })
