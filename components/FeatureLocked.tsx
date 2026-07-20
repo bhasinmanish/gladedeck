@@ -19,8 +19,11 @@ export function FeatureLocked({ name, price, featureKey }: Props) {
   // Just came back from a successful checkout — the webhook may still be
   // processing, so wait a moment and reload to pick up the new access.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("sub") === "success") {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("sub") === "success") {
+      // Strip the flag first so a delayed webhook can't cause a reload loop.
+      url.searchParams.delete("sub");
+      window.history.replaceState({}, "", url.toString());
       setFinalizing(true);
       const t = setTimeout(() => window.location.reload(), 3000);
       return () => clearTimeout(t);
