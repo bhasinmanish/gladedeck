@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AddTradeDialog } from "@/components/trades/AddTradeDialog";
-import { Plus, Trash2, Pencil, Search, ChevronUp, ChevronDown, ChevronsUpDown, X, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Search, ChevronUp, ChevronDown, ChevronsUpDown, X, Loader2, Check, Minus, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Trade, Strategy } from "@/lib/types";
 
@@ -67,6 +67,24 @@ function DateCell({ raw }: { raw: string }) {
   );
 }
 
+function CheckBox({ checked, indeterminate, onClick }: { checked: boolean; indeterminate?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-checked={checked}
+      role="checkbox"
+      className={cn(
+        "h-4 w-4 rounded border flex items-center justify-center transition-colors shrink-0",
+        checked || indeterminate
+          ? "bg-primary border-primary text-primary-foreground"
+          : "border-muted-foreground/40 hover:border-primary"
+      )}
+    >
+      {checked ? <Check className="h-3 w-3" /> : indeterminate ? <Minus className="h-3 w-3" /> : null}
+    </button>
+  );
+}
+
 function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="bg-card border border-border rounded-lg px-4 py-3">
@@ -83,6 +101,9 @@ export function TradeTable({ trades: initial, strategies }: Props) {
   const [deletingId, setDeletingId]     = useState<string | null>(null);
   const [clearOpen, setClearOpen]       = useState(false);
   const [clearing, setClearing]         = useState<null | "all" | "synced">(null);
+  const [selectMode, setSelectMode]     = useState(false);
+  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const schwabCount = trades.filter(t => t.source === "schwab").length;
 
@@ -180,6 +201,53 @@ export function TradeTable({ trades: initial, strategies }: Props) {
     }
   }
 
+  function enterSelectMode() {
+    setClearOpen(false);
+    setSelectedIds(new Set());
+    setSelectMode(true);
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev =>
+      visible.every(t => prev.has(t.id))
+        ? new Set()                             // all visible selected → clear
+        : new Set(visible.map(t => t.id))       // otherwise select all visible
+    );
+  }
+
+  async function deleteSelected() {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await fetch("/api/trades", {
+        method:  "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        const removed = new Set(ids);
+        setTrades(prev => prev.filter(t => !removed.has(t.id)));
+        exitSelectMode();
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   // ── Sortable header cell ────────────────────────────────────────────────────
 
   function SortHead({ label, k, align }: { label: string; k: SortKey; align?: "right" }) {
@@ -230,69 +298,93 @@ export function TradeTable({ trades: initial, strategies }: Props) {
         />
       </div>
 
-      {/* Toolbar: filters + Log Trade */}
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={e => setQuery(e.target.value.toUpperCase())}
-            placeholder="Symbol"
-            className="h-8 pl-8 w-32 text-xs font-mono"
-          />
-        </div>
-
-        <Select value={statusFilter} onValueChange={v => setStatusFilter(v as typeof statusFilter)}>
-          <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="open">Open</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={sideFilter} onValueChange={v => setSideFilter(v as typeof sideFilter)}>
-          <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sides</SelectItem>
-            <SelectItem value="long">Long</SelectItem>
-            <SelectItem value="short">Short</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={sourceFilter} onValueChange={v => setSourceFilter(v as typeof sourceFilter)}>
-          <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sources</SelectItem>
-            <SelectItem value="schwab">Schwab</SelectItem>
-            <SelectItem value="manual">Manual</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {hasFilters && (
-          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground" onClick={clearFilters}>
-            <X className="h-3.5 w-3.5" /> Clear
+      {/* Toolbar: selection mode OR filters + actions */}
+      {selectMode ? (
+        <div className="flex flex-wrap items-center gap-2 shrink-0 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+          <ListChecks className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={toggleSelectAll} disabled={visible.length === 0}>
+            {visible.length > 0 && visible.every(t => selectedIds.has(t.id)) ? "Deselect all" : "Select all"}
           </Button>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <p className="text-xs text-muted-foreground mr-1">
-            {hasFilters ? `${visible.length} of ${trades.length}` : `${trades.length} trade${trades.length !== 1 ? "s" : ""}`}
-          </p>
-          {trades.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="h-8" onClick={exitSelectMode} disabled={bulkDeleting}>
+              Cancel
+            </Button>
             <Button
-              variant="outline" size="sm"
-              className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
-              onClick={() => setClearOpen(true)}
+              variant="destructive" size="sm"
+              className="h-8 gap-1.5"
+              onClick={deleteSelected}
+              disabled={bulkDeleting || selectedIds.size === 0}
             >
-              <Trash2 className="h-3.5 w-3.5" /> Clear history
+              {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Delete selected{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={e => setQuery(e.target.value.toUpperCase())}
+              placeholder="Symbol"
+              className="h-8 pl-8 w-32 text-xs font-mono"
+            />
+          </div>
+
+          <Select value={statusFilter} onValueChange={v => setStatusFilter(v as typeof statusFilter)}>
+            <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sideFilter} onValueChange={v => setSideFilter(v as typeof sideFilter)}>
+            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sides</SelectItem>
+              <SelectItem value="long">Long</SelectItem>
+              <SelectItem value="short">Short</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sourceFilter} onValueChange={v => setSourceFilter(v as typeof sourceFilter)}>
+            <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              <SelectItem value="schwab">Schwab</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground" onClick={clearFilters}>
+              <X className="h-3.5 w-3.5" /> Clear
             </Button>
           )}
-          <Button size="sm" onClick={() => { setEditingTrade(null); setDialogOpen(true); }} className="gap-2">
-            <Plus className="h-4 w-4" /> Log Trade
-          </Button>
+
+          <div className="ml-auto flex items-center gap-2">
+            <p className="text-xs text-muted-foreground mr-1">
+              {hasFilters ? `${visible.length} of ${trades.length}` : `${trades.length} trade${trades.length !== 1 ? "s" : ""}`}
+            </p>
+            {trades.length > 0 && (
+              <Button
+                variant="outline" size="sm"
+                className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
+                onClick={() => setClearOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Clear history
+              </Button>
+            )}
+            <Button size="sm" onClick={() => { setEditingTrade(null); setDialogOpen(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Log Trade
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border border-border flex-1 min-h-0 overflow-auto">
@@ -300,6 +392,15 @@ export function TradeTable({ trades: initial, strategies }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              {selectMode && (
+                <TableHead className="w-8">
+                  <CheckBox
+                    checked={visible.length > 0 && visible.every(t => selectedIds.has(t.id))}
+                    indeterminate={selectedIds.size > 0 && !visible.every(t => selectedIds.has(t.id))}
+                    onClick={toggleSelectAll}
+                  />
+                </TableHead>
+              )}
               <SortHead label="Symbol" k="symbol" />
               <SortHead label="Side"   k="side" />
               <SortHead label="Type"   k="type" />
@@ -314,19 +415,27 @@ export function TradeTable({ trades: initial, strategies }: Props) {
           <TableBody>
             {trades.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+                <TableCell colSpan={selectMode ? 10 : 9} className="text-center py-16 text-muted-foreground">
                   No trades yet. Click &ldquo;Log Trade&rdquo; to add your first one.
                 </TableCell>
               </TableRow>
             ) : visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+                <TableCell colSpan={selectMode ? 10 : 9} className="text-center py-16 text-muted-foreground">
                   No trades match your filters.
                 </TableCell>
               </TableRow>
             ) : (
               visible.map(t => (
-                <TableRow key={t.id} className="hover:bg-muted/20">
+                <TableRow
+                  key={t.id}
+                  className={cn("hover:bg-muted/20", selectMode && selectedIds.has(t.id) && "bg-primary/5")}
+                >
+                  {selectMode && (
+                    <TableCell className="w-8">
+                      <CheckBox checked={selectedIds.has(t.id)} onClick={() => toggleSelect(t.id)} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Link href={`/stocks/${t.symbol}`} className="font-bold text-primary hover:underline">
                       {t.symbol}
@@ -410,6 +519,15 @@ export function TradeTable({ trades: initial, strategies }: Props) {
             Permanently delete trades from your log. This can&apos;t be undone.
           </p>
           <div className="space-y-2 py-1">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={enterSelectMode}
+              disabled={clearing !== null}
+            >
+              <ListChecks className="h-4 w-4" />
+              Select individual trades to delete…
+            </Button>
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
