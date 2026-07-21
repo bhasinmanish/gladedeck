@@ -208,8 +208,9 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
 
           {agents.length > 0 && (
             <p className="text-[11px] text-muted-foreground mt-6 border-t border-border pt-3">
-              Scheduled execution isn&apos;t live yet — agents are saved and ready, and their alerts will
-              appear in the Alerts tab once running is enabled.
+              Active agents run twice each trading day — 8:00 AM ET and 16:15 ET after the close — and
+              post anything they find to the Alerts tab. This requires the market-data service to be
+              running.
             </p>
           )}
         </TabsContent>

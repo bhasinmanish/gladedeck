@@ -13,16 +13,41 @@ interface ChatMessage {
   content: string;
 }
 
+interface StructuredTrigger {
+  type:       string;
+  period?:    number;
+  direction?: string;
+  pct?:       number;
+  window?:    string;
+  multiple?:  number;
+  days?:      number;
+}
+
 interface Proposal {
-  name:           string;
-  description:    string;
-  universe?:      string;
-  triggers?:      string[];
-  schedule?:      string;
-  cooldown_days?: number;
-  suppress?:      string[];
-  context?:       string[];
-  output_style?:  string;
+  name:                 string;
+  description:          string;
+  universe?:            string;
+  universe_type?:       string;
+  symbols?:             string[];
+  triggers?:            string[];
+  structured_triggers?: StructuredTrigger[];
+  schedule?:            string;
+  cooldown_days?:       number;
+  suppress?:            string[];
+  context?:             string[];
+  output_style?:        string;
+}
+
+// Plain-English summary of a machine-evaluable trigger.
+function triggerLabel(t: StructuredTrigger): string {
+  switch (t.type) {
+    case "sma_cross":       return `Crosses ${t.direction ?? "below"} the ${t.period ?? 200}-day SMA`;
+    case "drawdown":        return `Drops ${t.pct ?? 5}% over ${t.window ?? "1d"}`;
+    case "gain":            return `Gains ${t.pct ?? 5}% over ${t.window ?? "1d"}`;
+    case "volume_spike":    return `Volume ${t.multiple ?? 2}x its 20-day average`;
+    case "earnings_within": return `Earnings within ${t.days ?? 10} days`;
+    default:                return t.type;
+  }
 }
 
 const STARTERS = [
@@ -190,8 +215,11 @@ export function AgentChatDialog({ open, onClose, onCreated }: Props) {
                 {proposal.universe && (
                   <Row label="Watches" value={proposal.universe} />
                 )}
+                {proposal.structured_triggers && proposal.structured_triggers.length > 0 && (
+                  <ListRow label="Fires when" items={proposal.structured_triggers.map(triggerLabel)} />
+                )}
                 {proposal.triggers && proposal.triggers.length > 0 && (
-                  <ListRow label="Triggers" items={proposal.triggers} />
+                  <ListRow label="Watching for" items={proposal.triggers} />
                 )}
                 {proposal.schedule && <Row label="Runs" value={proposal.schedule} />}
                 {proposal.cooldown_days != null && (
