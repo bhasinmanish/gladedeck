@@ -82,9 +82,16 @@ def _price_alert_job():
 
 def _agent_job():
     try:
-        run_agents()
+        run_agents(mode="daily")
     except Exception as exc:
         log.error("Agent run failed: %s", exc)
+
+
+def _agent_intraday_job():
+    try:
+        run_agents(mode="intraday")
+    except Exception as exc:
+        log.error("Intraday agent run failed: %s", exc)
 
 
 def start_scheduler():
@@ -141,6 +148,17 @@ def start_scheduler():
         _agent_job,
         CronTrigger(hour=8, minute=0, day_of_week="mon-fri"),
         id="agents_open",
+    )
+    # Intraday agents — ticks every 5 min during market hours. Each agent only
+    # evaluates once its own run_interval has elapsed, so this tick is cheap.
+    _scheduler.add_job(
+        _agent_intraday_job,
+        CronTrigger(
+            hour="9-15",
+            minute="*/5",
+            day_of_week="mon-fri",
+        ),
+        id="agents_intraday",
     )
     _scheduler.start()
     log.info("Scheduler started.")

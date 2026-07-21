@@ -170,7 +170,9 @@ export interface AgentSpec {
   triggers?:            string[]; // human-readable trigger descriptions (for display)
   structured_triggers?: StructuredTrigger[]; // what the runner actually evaluates
   schedule?:            string;   // human-readable cadence, e.g. "Daily at 8:00 AM ET"
+  run_interval?:        "5m" | "15m" | "30m" | "1h" | "4h" | "daily"; // machine cadence
   cooldown_days?:       number;   // per-symbol quiet period after an alert
+  cooldown_hours?:      number;   // finer-grained quiet period (wins over cooldown_days)
   suppress?:            string[]; // things it should deliberately stay quiet about
   context?:             string[]; // context to layer onto every qualifying trigger
   output_style?:        string;   // how the alert note should read

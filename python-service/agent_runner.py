@@ -1,17 +1,23 @@
 """
-Runs user-created AI agents.
+Runs user-created AI agents, on either a daily or an intraday cadence.
 
 Each agent row in `agents` stores a spec:
   - universe_type       : "watchlist" | "holdings" | "symbols" | "market"
   - symbols             : explicit list, used when universe_type == "symbols"
   - structured_triggers : machine-evaluable triggers (see _eval_trigger)
-  - cooldown_days       : per-symbol quiet period after an alert fires
+  - run_interval        : "5m" | "15m" | "30m" | "1h" | "4h" | "daily"
+  - cooldown_hours      : per-symbol quiet period (falls back to cooldown_days)
   - context             : judgement layer handed to Claude when writing the note
   - output_style        : how the alert note should read
 
-Deterministic triggers decide *whether* to speak. Claude decides *what to say*,
-and is only ever given real numbers computed here — it never sees a live feed and
-is instructed not to invent data.
+Data strategy — the important bit:
+  Slow-moving reference levels (SMAs, average volume, prior close) come from DAILY
+  bars via yfinance and are cached once per calendar day. Live prices come from
+  TradingView's batch quote endpoint on every tick. That way a "200-day SMA break"
+  is detected the moment it happens without ever needing 200 days of minute bars.
+
+Deterministic triggers decide *whether* to speak. Claude decides *what to say*, and
+only ever sees real numbers computed here plus real headlines — never a live feed.
 """
 
 import asyncio
@@ -26,13 +32,23 @@ from supabase import create_client, Client
 
 from news import fetch_news_for_symbols
 from email_sender import send_agent_alert_email, get_notif_prefs, get_user_email
+# Reuses the batched TradingView quote fetch already proven by the price-alert checker.
+from price_alert_checker import _fetch_quotes
 
 log = logging.getLogger(__name__)
 
 HISTORY_PERIOD = "1y"          # enough for a 200-day SMA
-DEFAULT_COOLDOWN_DAYS = 7
-MAX_SYMBOLS_PER_AGENT = 60     # guard against runaway universes
-NEWS_LOOKBACK_HOURS = 72       # context window for headlines attached to an alert
+MAX_SYMBOLS_PER_AGENT = 60
+NEWS_LOOKBACK_HOURS = 72
+
+INTERVAL_MINUTES = {
+    "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "daily": 1440,
+}
+DEFAULT_INTRADAY_COOLDOWN_H = 4.0
+DEFAULT_DAILY_COOLDOWN_H    = 168.0   # 7 days
+
+# Daily reference levels, cached per calendar day: {symbol: (date, levels)}
+_LEVELS_CACHE: dict[str, tuple[datetime.date, dict]] = {}
 
 
 def _get_supabase() -> Client:
@@ -42,6 +58,32 @@ def _get_supabase() -> Client:
     )
 
 
+# ── Cadence ──────────────────────────────────────────────────────────────────
+
+def _interval_minutes(spec: dict) -> int:
+    return INTERVAL_MINUTES.get(str(spec.get("run_interval") or "daily").lower(), 1440)
+
+
+def _is_due(agent: dict, interval_min: int, now: datetime.datetime) -> bool:
+    last = agent.get("last_run_at")
+    if not last:
+        return True
+    try:
+        prev = datetime.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    elapsed_min = (now - prev).total_seconds() / 60
+    return elapsed_min >= interval_min - 1   # tolerate scheduler jitter
+
+
+def _cooldown_hours(spec: dict, interval_min: int) -> float:
+    if spec.get("cooldown_hours") is not None:
+        return float(spec["cooldown_hours"])
+    if spec.get("cooldown_days") is not None:
+        return float(spec["cooldown_days"]) * 24
+    return DEFAULT_INTRADAY_COOLDOWN_H if interval_min < 1440 else DEFAULT_DAILY_COOLDOWN_H
+
+
 # ── Universe resolution ──────────────────────────────────────────────────────
 
 def _resolve_universe(db: Client, agent: dict, user_id: str) -> list[str]:
@@ -49,8 +91,7 @@ def _resolve_universe(db: Client, agent: dict, user_id: str) -> list[str]:
     kind = (spec.get("universe_type") or "watchlist").lower()
 
     if kind == "symbols":
-        symbols = spec.get("symbols") or []
-        return [s.upper() for s in symbols][:MAX_SYMBOLS_PER_AGENT]
+        return [s.upper() for s in (spec.get("symbols") or [])][:MAX_SYMBOLS_PER_AGENT]
 
     if kind == "holdings":
         rows = db.table("trades").select("symbol").eq("user_id", user_id).execute().data or []
@@ -65,32 +106,60 @@ def _resolve_universe(db: Client, agent: dict, user_id: str) -> list[str]:
                     out.append(s.upper())
         return out[:MAX_SYMBOLS_PER_AGENT]
 
-    # "market" — not a per-symbol universe; handled as a no-op for now.
-    return []
+    return []   # "market" — not a per-symbol universe
 
 
-# ── Market data ──────────────────────────────────────────────────────────────
+# ── Daily reference levels (cached once per day) ─────────────────────────────
 
-def _history(symbol: str, cache: dict[str, Any]) -> Optional[Any]:
-    """Daily OHLCV for a symbol, cached for the duration of a run."""
-    if symbol in cache:
-        return cache[symbol]
+def _daily_levels(symbol: str) -> Optional[dict]:
+    """
+    Slow-moving levels from daily bars. Cached per calendar day so a 5-minute
+    job doesn't hammer yfinance — one fetch per symbol per day.
+    """
+    today = datetime.date.today()
+    cached = _LEVELS_CACHE.get(symbol)
+    if cached and cached[0] == today:
+        return cached[1]
+
     try:
         df = yf.Ticker(symbol).history(period=HISTORY_PERIOD)
-        cache[symbol] = df if df is not None and not df.empty else None
+        if df is None or df.empty or len(df) < 2:
+            return None
+        closes = [float(c) for c in df["Close"].tolist()]
+        volumes = [float(v) for v in df["Volume"].tolist()]
+        levels = {
+            "closes":        closes,
+            "prev_close":    closes[-1],
+            "avg_volume_20": sum(volumes[-20:]) / min(20, len(volumes)) if volumes else 0.0,
+        }
+        _LEVELS_CACHE[symbol] = (today, levels)
+        return levels
     except Exception as exc:
-        log.warning("History fetch failed for %s: %s", symbol, exc)
-        cache[symbol] = None
-    return cache[symbol]
+        log.warning("Daily levels fetch failed for %s: %s", symbol, exc)
+        return None
+
+
+def _sma(levels: dict, period: int) -> Optional[float]:
+    closes = levels.get("closes") or []
+    if len(closes) < period:
+        return None
+    return sum(closes[-period:]) / period
+
+
+def _pct_change_over(levels: dict, bars: int, live_close: float) -> Optional[float]:
+    closes = levels.get("closes") or []
+    if len(closes) < bars:
+        return None
+    start = closes[-bars]
+    if start == 0:
+        return None
+    return (live_close - start) / start * 100
 
 
 def _earnings_in_days(symbol: str) -> Optional[int]:
-    """Calendar days until the next earnings date, if yfinance knows one."""
     try:
         cal = yf.Ticker(symbol).calendar
-        dates = None
-        if isinstance(cal, dict):
-            dates = cal.get("Earnings Date")
+        dates = cal.get("Earnings Date") if isinstance(cal, dict) else None
         if not dates:
             return None
         nxt = dates[0] if isinstance(dates, (list, tuple)) else dates
@@ -101,12 +170,21 @@ def _earnings_in_days(symbol: str) -> Optional[int]:
         return None
 
 
+def _recent_news(symbol: str) -> list[dict]:
+    try:
+        results = asyncio.run(fetch_news_for_symbols([symbol], since_hours=NEWS_LOOKBACK_HOURS))
+        return results.get(symbol, [])[:6]
+    except Exception as exc:
+        log.warning("News fetch failed for %s: %s", symbol, exc)
+        return []
+
+
 # ── Trigger evaluation ───────────────────────────────────────────────────────
 
-def _eval_trigger(trigger: dict, symbol: str, cache: dict[str, Any]) -> Optional[dict]:
+def _eval_trigger(trigger: dict, symbol: str, quote: dict, levels: Optional[dict]) -> Optional[dict]:
     """
-    Returns a dict of evidence when the trigger fires, else None.
-    The evidence is what gets handed to Claude, so it must be real numbers.
+    Returns evidence (real numbers) when the trigger fires, else None.
+    `quote` is the live TradingView row; `levels` are today's daily reference levels.
     """
     ttype = (trigger.get("type") or "").lower()
 
@@ -117,71 +195,80 @@ def _eval_trigger(trigger: dict, symbol: str, cache: dict[str, Any]) -> Optional
             return {"trigger": "earnings_within", "days_until_earnings": days_ahead, "limit": limit}
         return None
 
-    df = _history(symbol, cache)
-    if df is None or len(df) < 2:
+    live_close = quote.get("close")
+    if live_close is None:
         return None
-
-    close = df["Close"]
-    volume = df["Volume"]
-    last_close = float(close.iloc[-1])
+    live_close = float(live_close)
 
     if ttype == "sma_cross":
-        period = int(trigger.get("period") or 200)
-        if len(close) < period + 1:
+        if not levels:
             return None
-        sma = close.rolling(period).mean()
-        prev_c, last_c = float(close.iloc[-2]), last_close
-        prev_s, last_s = float(sma.iloc[-2]), float(sma.iloc[-1])
+        period = int(trigger.get("period") or 200)
+        sma = _sma(levels, period)
+        prev_close = levels.get("prev_close")
+        if sma is None or prev_close is None:
+            return None
+
         direction = (trigger.get("direction") or "below").lower()
-        crossed_up   = prev_c <= prev_s and last_c > last_s
-        crossed_down = prev_c >= prev_s and last_c < last_s
+        # "Crossed since yesterday's close" — stateless, and fires the moment
+        # price moves through the level intraday rather than waiting for 4pm.
+        crossed_up   = prev_close <= sma and live_close > sma
+        crossed_down = prev_close >= sma and live_close < sma
         if (direction == "above" and crossed_up) or (direction == "below" and crossed_down):
             return {
-                "trigger": "sma_cross",
-                "period": period,
-                "direction": direction,
-                "close": round(last_c, 2),
-                "sma": round(last_s, 2),
+                "trigger":    "sma_cross",
+                "period":     period,
+                "direction":  direction,
+                "close":      round(live_close, 2),
+                "sma":        round(sma, 2),
+                "prev_close": round(float(prev_close), 2),
             }
         return None
 
     if ttype in ("drawdown", "gain"):
         window = (trigger.get("window") or "1d").lower()
-        bars = {"1d": 1, "5d": 5, "1mo": 21}.get(window, 1)
-        if len(close) < bars + 1:
-            return None
-        start = float(close.iloc[-1 - bars])
-        pct_move = (last_close - start) / start * 100
         threshold = float(trigger.get("pct") or 5)
+
+        if window == "1d":
+            pct_move = quote.get("change")          # TradingView day change %
+            if pct_move is None and levels:
+                prev = levels.get("prev_close")
+                pct_move = (live_close - prev) / prev * 100 if prev else None
+        else:
+            bars = {"5d": 5, "1mo": 21}.get(window, 5)
+            pct_move = _pct_change_over(levels, bars, live_close) if levels else None
+
+        if pct_move is None:
+            return None
+        pct_move = float(pct_move)
 
         fired = pct_move <= -threshold if ttype == "drawdown" else pct_move >= threshold
         if not fired:
             return None
 
         evidence = {
-            "trigger": ttype,
-            "window": window,
-            "pct_move": round(pct_move, 2),
+            "trigger":   ttype,
+            "window":    window,
+            "pct_move":  round(pct_move, 2),
             "threshold": threshold,
-            "close": round(last_close, 2),
+            "close":     round(live_close, 2),
         }
-
         if trigger.get("require_volume_spike"):
-            ratio = _volume_ratio(volume)
-            if ratio is None or ratio < 1.5:
+            rvol = quote.get("relative_volume_10d_calc")
+            if rvol is None or float(rvol) < 1.5:
                 return None
-            evidence["volume_vs_avg"] = round(ratio, 2)
+            evidence["volume_vs_avg"] = round(float(rvol), 2)
         return evidence
 
     if ttype == "volume_spike":
         multiple = float(trigger.get("multiple") or 2)
-        ratio = _volume_ratio(volume)
-        if ratio is not None and ratio >= multiple:
+        rvol = quote.get("relative_volume_10d_calc")
+        if rvol is not None and float(rvol) >= multiple:
             return {
-                "trigger": "volume_spike",
-                "volume_vs_avg": round(ratio, 2),
-                "multiple": multiple,
-                "close": round(last_close, 2),
+                "trigger":       "volume_spike",
+                "volume_vs_avg": round(float(rvol), 2),
+                "multiple":      multiple,
+                "close":         round(live_close, 2),
             }
         return None
 
@@ -189,31 +276,11 @@ def _eval_trigger(trigger: dict, symbol: str, cache: dict[str, Any]) -> Optional
     return None
 
 
-def _recent_news(symbol: str) -> list[dict]:
-    """Recent important headlines for a symbol — the context layer for the note."""
-    try:
-        results = asyncio.run(fetch_news_for_symbols([symbol], since_hours=NEWS_LOOKBACK_HOURS))
-        return results.get(symbol, [])[:6]
-    except Exception as exc:
-        log.warning("News fetch failed for %s: %s", symbol, exc)
-        return []
-
-
-def _volume_ratio(volume) -> Optional[float]:
-    """Latest volume as a multiple of its trailing 20-day average."""
-    if len(volume) < 21:
-        return None
-    avg = float(volume.iloc[-21:-1].mean())
-    if avg <= 0:
-        return None
-    return float(volume.iloc[-1]) / avg
-
-
 # ── Cooldown ─────────────────────────────────────────────────────────────────
 
-def _recently_alerted(db: Client, agent_id: str, symbol: str, cooldown_days: int) -> bool:
+def _recently_alerted(db: Client, agent_id: str, symbol: str, cooldown_hours: float) -> bool:
     since = (datetime.datetime.now(datetime.timezone.utc)
-             - datetime.timedelta(days=cooldown_days)).isoformat()
+             - datetime.timedelta(hours=cooldown_hours)).isoformat()
     rows = (db.table("agent_alerts")
               .select("id")
               .eq("agent_id", agent_id)
@@ -262,7 +329,6 @@ def _compose_note(agent: dict, symbol: str, evidence: dict,
         return None
 
     spec = agent.get("spec") or {}
-
     if headlines:
         news_block = "\n".join(
             f"- [{h.get('category', 'news')}] {h.get('title')} ({h.get('publisher') or 'unknown'})"
@@ -320,19 +386,15 @@ def _fallback_note(symbol: str, evidence: dict) -> dict:
 # ── Email delivery ───────────────────────────────────────────────────────────
 
 def _maybe_email(db: Client, user_id: str, agent: dict, symbol: str, note: dict) -> None:
-    """Email the note if the user has email alerts and agent alerts both enabled."""
     try:
         prefs = get_notif_prefs(db, user_id)
         if not prefs.get("email_enabled"):
             return
-        # email_agents defaults to True when the column/row is absent.
         if prefs.get("email_agents") is False:
             return
-
         to = get_user_email(db, user_id)
         if not to:
             return
-
         asyncio.run(send_agent_alert_email(
             to=to,
             agent_name=agent.get("name") or "Agent",
@@ -347,46 +409,74 @@ def _maybe_email(db: Client, user_id: str, agent: dict, symbol: str, note: dict)
 
 # ── Main entry ───────────────────────────────────────────────────────────────
 
-def run_agents() -> int:
-    """Evaluate every active agent. Returns the number of alerts written."""
+def run_agents(mode: str = "daily") -> int:
+    """
+    Evaluate active agents. `mode` is "intraday" (sub-daily cadences, only those
+    whose interval has elapsed) or "daily". Returns the number of alerts written.
+    """
     db = _get_supabase()
+    now = datetime.datetime.now(datetime.timezone.utc)
 
-    agents = (db.table("agents")
-                .select("*")
-                .eq("status", "active")
-                .execute().data) or []
+    all_agents = (db.table("agents").select("*").eq("status", "active").execute().data) or []
 
-    if not agents:
-        log.info("No active agents")
+    # Pick the agents that belong to this mode and are actually due.
+    due: list[tuple[dict, int]] = []
+    for agent in all_agents:
+        spec = agent.get("spec") or {}
+        if not (spec.get("structured_triggers") or []):
+            continue
+        interval = _interval_minutes(spec)
+        wants_intraday = interval < 1440
+        if (mode == "intraday") != wants_intraday:
+            continue
+        if mode == "intraday" and not _is_due(agent, interval, now):
+            continue
+        due.append((agent, interval))
+
+    if not due:
+        log.info("No %s agents due", mode)
         return 0
 
-    history_cache: dict[str, Any] = {}
-    written = 0
+    # Resolve every universe first so live quotes can be fetched in one batch.
+    universes: dict[str, list[str]] = {}
+    all_symbols: set[str] = set()
+    for agent, _ in due:
+        try:
+            syms = _resolve_universe(db, agent, agent["user_id"])
+        except Exception as exc:
+            log.error("Universe resolution failed for %s: %s", agent.get("name"), exc)
+            syms = []
+        universes[agent["id"]] = syms
+        all_symbols.update(syms)
 
-    for agent in agents:
+    quotes: dict[str, dict] = {}
+    if all_symbols:
+        try:
+            quotes = asyncio.run(_fetch_quotes(sorted(all_symbols)))
+        except Exception as exc:
+            log.error("Live quote fetch failed: %s", exc)
+            return 0
+
+    written = 0
+    for agent, interval in due:
         spec = agent.get("spec") or {}
         triggers = spec.get("structured_triggers") or []
-        if not triggers:
-            log.info("Agent %s has no structured triggers — skipping", agent.get("name"))
-            continue
-
-        cooldown = int(spec.get("cooldown_days") or DEFAULT_COOLDOWN_DAYS)
+        cooldown_h = _cooldown_hours(spec, interval)
         user_id = agent["user_id"]
 
-        try:
-            symbols = _resolve_universe(db, agent, user_id)
-        except Exception as exc:
-            log.error("Universe resolution failed for agent %s: %s", agent.get("name"), exc)
-            continue
-
-        for symbol in symbols:
-            if _recently_alerted(db, agent["id"], symbol, cooldown):
+        for symbol in universes.get(agent["id"], []):
+            quote = quotes.get(symbol)
+            if not quote:
                 continue
+            if _recently_alerted(db, agent["id"], symbol, cooldown_h):
+                continue
+
+            levels = _daily_levels(symbol)
 
             fired: list[dict] = []
             for trigger in triggers:
                 try:
-                    evidence = _eval_trigger(trigger, symbol, history_cache)
+                    evidence = _eval_trigger(trigger, symbol, quote, levels)
                 except Exception as exc:
                     log.warning("Trigger eval failed (%s / %s): %s", agent.get("name"), symbol, exc)
                     evidence = None
@@ -417,11 +507,11 @@ def run_agents() -> int:
             _maybe_email(db, user_id, agent, symbol, note)
 
         try:
-            db.table("agents").update({
-                "last_run_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }).eq("id", agent["id"]).execute()
+            db.table("agents").update({"last_run_at": now.isoformat()}) \
+              .eq("id", agent["id"]).execute()
         except Exception as exc:
             log.warning("Could not update last_run_at for %s: %s", agent.get("name"), exc)
 
-    log.info("Agent run complete — %d alert(s) written", written)
+    log.info("Agent run (%s) complete — %d agent(s) evaluated, %d alert(s) written",
+             mode, len(due), written)
     return written

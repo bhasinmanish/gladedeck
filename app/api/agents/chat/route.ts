@@ -54,8 +54,17 @@ const PROPOSE_AGENT_TOOL: Anthropic.Tool = {
           required: ["type"],
         },
       },
-      schedule:      { type: "string", description: "Human-readable cadence, e.g. 'Daily at 8:00 AM ET'." },
-      cooldown_days: { type: "number", description: "Per-symbol quiet period in days after an alert fires." },
+      schedule:      { type: "string", description: "Human-readable cadence, e.g. 'Every 15 minutes during market hours'." },
+      run_interval: {
+        type: "string",
+        enum: ["5m", "15m", "30m", "1h", "4h", "daily"],
+        description:
+          "How often the agent actually evaluates. Sub-daily intervals run during market hours only. " +
+          "Use 'daily' for earnings/event and end-of-day trend agents; use intraday intervals only when " +
+          "the user genuinely needs to know within the session.",
+      },
+      cooldown_days:  { type: "number", description: "Per-symbol quiet period in days. Prefer cooldown_hours for intraday agents." },
+      cooldown_hours: { type: "number", description: "Per-symbol quiet period in hours. Use this for any intraday agent (4-8 is sensible)." },
       suppress:      { type: "array", items: { type: "string" }, description: "Cases it should deliberately stay quiet about." },
       context:       { type: "array", items: { type: "string" }, description: "Context to layer onto every qualifying trigger." },
       output_style:  { type: "string", description: "How the alert note should read." },
@@ -100,6 +109,14 @@ Anything else — thesis drift, guidance language, margin pressure, backlog crac
 flow, macro reads — cannot be a trigger. Those belong in the context field: the judgement layer applied
 when a trigger fires and the alert note is written. Be honest about this rather than promising a trigger
 that cannot run. A good design pairs a mechanical trigger with a rich context overlay.
+
+Cadence. Ask how quickly they need to know, then set run_interval accordingly:
+- daily — earnings and event risk, end-of-day trend breaks, thesis monitoring. The right default.
+- 1h / 4h — meaningful intraday moves without the noise of watching every tick.
+- 5m / 15m — only when acting inside the session actually matters, e.g. a stop-loss style drawdown alert.
+Intraday agents run during market hours only. Always pair an intraday interval with cooldown_hours
+(4-8 hours is sensible) — without it the same condition can re-fire all day and drown the user.
+Default to daily unless they say otherwise; more frequent is not better.
 
 If the user is vague, offer 2-3 concrete tailored directions and invite them to send one sentence in
 this format: "Watch [what] for [condition], check [how often], notify me with [what kind of note]."
