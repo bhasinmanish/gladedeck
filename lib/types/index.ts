@@ -148,6 +148,44 @@ export interface DailySummary {
   created_at: string;
 }
 
+// ─── AI agents ────────────────────────────────────────────────────────────────
+
+export interface AgentSpec {
+  universe?:      string;   // what it watches (portfolio, watchlist, a symbol list…)
+  triggers?:      string[]; // the conditions that fire it
+  schedule?:      string;   // human-readable cadence, e.g. "Daily at 8:00 AM ET"
+  cooldown_days?: number;   // per-symbol quiet period after an alert
+  suppress?:      string[]; // things it should deliberately stay quiet about
+  context?:       string[]; // context to layer onto every qualifying trigger
+  output_style?:  string;   // how the alert note should read
+  [key: string]: unknown;
+}
+
+export interface Agent {
+  id:          string;
+  user_id:     string;
+  name:        string;
+  description: string | null;
+  spec:        AgentSpec;
+  schedule:    string | null;
+  status:      "active" | "paused";
+  last_run_at: string | null;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export interface AgentAlert {
+  id:         string;
+  user_id:    string;
+  agent_id:   string | null;
+  title:      string;
+  body:       string | null;
+  symbol:     string | null;
+  conviction: "high" | "medium" | "low" | null;
+  is_read:    boolean;
+  created_at: string;
+}
+
 // ─── Scanner API response ─────────────────────────────────────────────────────
 
 export interface ScannerResponse {
