@@ -26,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Trade Log",    href: "/trade-log"    },
   { label: "Orders",       href: "/orders"       },
   { label: "Strategies",   href: "/strategies"   },
+  { label: "Agents",       href: "/agents"       },
   { label: "Reports",      href: "/reports"      },
 ];
 
