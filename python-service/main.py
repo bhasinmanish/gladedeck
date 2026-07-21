@@ -7,9 +7,17 @@ from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
 from alerts import dispatch_alert, AlertRequest
 
+import logging
 import os
 
 load_dotenv()
+
+# Without this, Python defaults to WARNING and every log.info() in the service
+# (scheduler start, agent runs, alert counts) is silently dropped.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 
 def verify_secret(x_service_secret: str = Header(...)):
