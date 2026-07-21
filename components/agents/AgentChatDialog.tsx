@@ -31,6 +31,7 @@ interface Proposal {
   symbols?:             string[];
   triggers?:            string[];
   structured_triggers?: StructuredTrigger[];
+  trigger_logic?:       string;
   schedule?:            string;
   run_interval?:        string;
   cooldown_days?:       number;
@@ -218,7 +219,16 @@ export function AgentChatDialog({ open, onClose, onCreated }: Props) {
                   <Row label="Watches" value={proposal.universe} />
                 )}
                 {proposal.structured_triggers && proposal.structured_triggers.length > 0 && (
-                  <ListRow label="Fires when" items={proposal.structured_triggers.map(triggerLabel)} />
+                  <ListRow
+                    label={
+                      proposal.structured_triggers.length > 1 && proposal.trigger_logic === "all"
+                        ? "Fires when (all)"
+                        : proposal.structured_triggers.length > 1
+                          ? "Fires when (any)"
+                          : "Fires when"
+                    }
+                    items={proposal.structured_triggers.map(triggerLabel)}
+                  />
                 )}
                 {proposal.triggers && proposal.triggers.length > 0 && (
                   <ListRow label="Watching for" items={proposal.triggers} />
