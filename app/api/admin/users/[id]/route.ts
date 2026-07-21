@@ -32,6 +32,10 @@ export async function GET(
     strategies,
     tradeIdeas,
     dailySummaries,
+    agents,
+    agentAlerts,
+    subsRes,
+    brokersRes,
   ] = await Promise.all([
     admin.auth.admin.getUserById(id),
     countTable(admin, "trades",          id),
@@ -41,6 +45,17 @@ export async function GET(
     countTable(admin, "strategies",      id),
     countTable(admin, "trade_ideas",     id),
     countTable(admin, "daily_summaries", id),
+    countTable(admin, "agents",          id),
+    countTable(admin, "agent_alerts",    id),
+    admin
+      .from("feature_subscriptions")
+      .select("feature_key, status, current_period_end")
+      .eq("user_id", id)
+      .in("status", ["active", "trialing"]),
+    admin
+      .from("broker_connections")
+      .select("broker, updated_at")
+      .eq("user_id", id),
   ]);
 
   if (userErr || !targetUser) {
@@ -61,6 +76,17 @@ export async function GET(
       strategies,
       trade_ideas:     tradeIdeas,
       daily_summaries: dailySummaries,
+      agents,
+      agent_alerts:    agentAlerts,
     },
+    subscriptions: (subsRes.data ?? []).map(s => ({
+      feature_key:        s.feature_key,
+      status:             s.status,
+      current_period_end: s.current_period_end,
+    })),
+    brokers: (brokersRes.data ?? []).map(b => ({
+      broker:      b.broker,
+      last_synced: b.updated_at,
+    })),
   });
 }
