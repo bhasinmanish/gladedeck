@@ -21,6 +21,7 @@ from supabase import create_client
 from scanner import run_scan, ScanRequest
 from market_monitor import run_market_monitor
 from price_alert_checker import check_price_alerts
+from agent_runner import run_agents
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +80,13 @@ def _price_alert_job():
         log.error("Price alert checker failed: %s", exc)
 
 
+def _agent_job():
+    try:
+        run_agents()
+    except Exception as exc:
+        log.error("Agent run failed: %s", exc)
+
+
 def start_scheduler():
     # Market-wide news monitor every 15 min during extended hours (6 AM – 8 PM ET)
     _scheduler.add_job(
@@ -121,6 +129,18 @@ def start_scheduler():
             day_of_week="mon-fri",
         ),
         id="intraday",
+    )
+    # AI agents — after the close (16:15 ET) so daily bars are settled,
+    # plus a pre-open pass at 08:00 ET for earnings/event style agents.
+    _scheduler.add_job(
+        _agent_job,
+        CronTrigger(hour=16, minute=15, day_of_week="mon-fri"),
+        id="agents_close",
+    )
+    _scheduler.add_job(
+        _agent_job,
+        CronTrigger(hour=8, minute=0, day_of_week="mon-fri"),
+        id="agents_open",
     )
     _scheduler.start()
     log.info("Scheduler started.")

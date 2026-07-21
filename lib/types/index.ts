@@ -150,14 +150,30 @@ export interface DailySummary {
 
 // ─── AI agents ────────────────────────────────────────────────────────────────
 
+// Machine-evaluable trigger. The runner understands this fixed vocabulary;
+// anything requiring judgement belongs in `context` instead.
+export interface StructuredTrigger {
+  type:                  "sma_cross" | "drawdown" | "gain" | "volume_spike" | "earnings_within";
+  period?:               number;            // sma_cross: moving-average length
+  direction?:            "above" | "below"; // sma_cross: which way price crosses
+  pct?:                  number;            // drawdown/gain: % threshold
+  window?:               "1d" | "5d" | "1mo";
+  multiple?:             number;            // volume_spike: multiple of average volume
+  days?:                 number;            // earnings_within: days ahead
+  require_volume_spike?: boolean;           // drawdown/gain: demand abnormal volume
+}
+
 export interface AgentSpec {
-  universe?:      string;   // what it watches (portfolio, watchlist, a symbol list…)
-  triggers?:      string[]; // the conditions that fire it
-  schedule?:      string;   // human-readable cadence, e.g. "Daily at 8:00 AM ET"
-  cooldown_days?: number;   // per-symbol quiet period after an alert
-  suppress?:      string[]; // things it should deliberately stay quiet about
-  context?:       string[]; // context to layer onto every qualifying trigger
-  output_style?:  string;   // how the alert note should read
+  universe?:            string;   // human-readable description of what it watches
+  universe_type?:       "watchlist" | "holdings" | "symbols" | "market";
+  symbols?:             string[]; // used when universe_type is "symbols"
+  triggers?:            string[]; // human-readable trigger descriptions (for display)
+  structured_triggers?: StructuredTrigger[]; // what the runner actually evaluates
+  schedule?:            string;   // human-readable cadence, e.g. "Daily at 8:00 AM ET"
+  cooldown_days?:       number;   // per-symbol quiet period after an alert
+  suppress?:            string[]; // things it should deliberately stay quiet about
+  context?:             string[]; // context to layer onto every qualifying trigger
+  output_style?:        string;   // how the alert note should read
   [key: string]: unknown;
 }
 

@@ -18,15 +18,49 @@ const PROPOSE_AGENT_TOOL: Anthropic.Tool = {
     properties: {
       name:          { type: "string", description: "Short, specific agent name." },
       description:   { type: "string", description: "One or two sentences on what it does and when it speaks up." },
-      universe:      { type: "string", description: "What it watches — e.g. 'My watchlist', 'Portfolio holdings', 'NVDA, AMD, AVGO'." },
-      triggers:      { type: "array", items: { type: "string" }, description: "Concrete conditions that fire the agent." },
+      universe:      { type: "string", description: "Human-readable description of what it watches." },
+      universe_type: {
+        type: "string",
+        enum: ["watchlist", "holdings", "symbols", "market"],
+        description: "Which set of symbols to evaluate. Use 'symbols' only when the user named specific tickers.",
+      },
+      symbols: {
+        type: "array",
+        items: { type: "string" },
+        description: "Explicit tickers. Required when universe_type is 'symbols'.",
+      },
+      triggers:      { type: "array", items: { type: "string" }, description: "Human-readable trigger descriptions, for display." },
+      structured_triggers: {
+        type: "array",
+        description:
+          "The machine-evaluable form of the triggers — this is what actually runs. Include ONLY conditions " +
+          "expressible with the supported types below. Anything needing judgement (thesis drift, guidance " +
+          "language, news tone) is NOT a trigger — put it in `context` instead.",
+        items: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["sma_cross", "drawdown", "gain", "volume_spike", "earnings_within"],
+            },
+            period:    { type: "number", description: "sma_cross: moving-average length in days (e.g. 50, 100, 200)." },
+            direction: { type: "string", enum: ["above", "below"], description: "sma_cross: which way price crosses." },
+            pct:       { type: "number", description: "drawdown/gain: percent move threshold." },
+            window:    { type: "string", enum: ["1d", "5d", "1mo"], description: "drawdown/gain: lookback window." },
+            multiple:  { type: "number", description: "volume_spike: multiple of 20-day average volume (e.g. 2)." },
+            days:      { type: "number", description: "earnings_within: calendar days ahead." },
+            require_volume_spike: { type: "boolean", description: "drawdown/gain: only fire on abnormal volume." },
+          },
+          required: ["type"],
+        },
+      },
       schedule:      { type: "string", description: "Human-readable cadence, e.g. 'Daily at 8:00 AM ET'." },
       cooldown_days: { type: "number", description: "Per-symbol quiet period in days after an alert fires." },
       suppress:      { type: "array", items: { type: "string" }, description: "Cases it should deliberately stay quiet about." },
       context:       { type: "array", items: { type: "string" }, description: "Context to layer onto every qualifying trigger." },
       output_style:  { type: "string", description: "How the alert note should read." },
     },
-    required: ["name", "description", "triggers", "schedule"],
+    required: ["name", "description", "triggers", "structured_triggers", "universe_type", "schedule"],
   },
 };
 
@@ -54,11 +88,25 @@ Good agent design principles you should apply and explain:
   without volume confirmation).
 - Rank alerts by conviction (high / medium / low) rather than treating every trigger equally.
 
+IMPORTANT — what can actually run today. Agents execute against daily market data, and only these
+trigger types are machine-evaluable:
+- sma_cross      — price crossing above/below a moving average (any period, e.g. 50/100/200)
+- drawdown       — a drop of X% over 1 day, 5 days, or 1 month (optionally requiring abnormal volume)
+- gain           — the same in the upward direction
+- volume_spike   — volume at N times its 20-day average
+- earnings_within — earnings landing within N calendar days
+
+Anything else — thesis drift, guidance language, margin pressure, backlog cracks, news tone, options
+flow, macro reads — cannot be a trigger. Those belong in the context field: the judgement layer applied
+when a trigger fires and the alert note is written. Be honest about this rather than promising a trigger
+that cannot run. A good design pairs a mechanical trigger with a rich context overlay.
+
 If the user is vague, offer 2-3 concrete tailored directions and invite them to send one sentence in
 this format: "Watch [what] for [condition], check [how often], notify me with [what kind of note]."
 
 When you have enough to define a concrete agent — or the user accepts one of your suggestions —
-call the propose_agent tool. Do not call it while still exploring options.
+call the propose_agent tool. Do not call it while still exploring options. Every proposal must include
+at least one structured trigger, otherwise the agent can never fire.
 
 The user's current Glade Deck context:
 - Watchlist symbols: ${ctx.watchlist.length ? ctx.watchlist.join(", ") : "none yet"}
