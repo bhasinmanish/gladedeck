@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   Users, TrendingUp, Bell, BellRing, Eye, Lightbulb,
   CalendarCheck, BarChart2, ChevronRight, Loader2, ShieldCheck, Tag,
+  Bot, Sparkles, CreditCard, Plug,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FeaturePricing } from "@/components/admin/FeaturePricing";
@@ -28,7 +29,11 @@ interface UserDetail extends UserSummary {
     strategies:      number;
     trade_ideas:     number;
     daily_summaries: number;
+    agents:          number;
+    agent_alerts:    number;
   };
+  subscriptions: { feature_key: string; status: string; current_period_end: string | null }[];
+  brokers:       { broker: string; last_synced: string | null }[];
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -122,6 +127,8 @@ function DetailPanel({ userId }: { userId: string }) {
   const STATS = [
     { label: "Trades",         value: detail.stats.trades,          icon: TrendingUp,   color: "text-emerald-400" },
     { label: "Strategies",     value: detail.stats.strategies,      icon: BarChart2,    color: "text-blue-400"    },
+    { label: "AI Agents",      value: detail.stats.agents,          icon: Bot,          color: "text-primary"     },
+    { label: "Agent Alerts",   value: detail.stats.agent_alerts,    icon: Sparkles,     color: "text-fuchsia-400" },
     { label: "Price Alerts",   value: detail.stats.price_alerts,    icon: BellRing,     color: "text-amber-400"   },
     { label: "Alert History",  value: detail.stats.alerts,          icon: Bell,         color: "text-orange-400"  },
     { label: "Watchlists",     value: detail.stats.watchlists,      icon: Eye,          color: "text-cyan-400"    },
@@ -167,6 +174,60 @@ function DetailPanel({ userId }: { userId: string }) {
               <span className="text-xs font-mono truncate">{value}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Subscriptions & connections */}
+      <section>
+        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+          Subscriptions &amp; Connections
+        </h3>
+        <div className="rounded-lg border border-border divide-y divide-border">
+          <div className="flex items-start px-3 py-2.5 gap-4">
+            <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" /> Paid
+            </span>
+            <div className="min-w-0 flex-1">
+              {detail.subscriptions.length === 0 ? (
+                <span className="text-xs text-muted-foreground">Free — no active subscriptions</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {detail.subscriptions.map(s => (
+                    <span
+                      key={s.feature_key}
+                      className="text-[10px] font-medium px-2 py-0.5 rounded border border-profit/30 bg-profit/5 text-profit"
+                    >
+                      {s.feature_key}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-start px-3 py-2.5 gap-4">
+            <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5">
+              <Plug className="h-3.5 w-3.5" /> Brokers
+            </span>
+            <div className="min-w-0 flex-1">
+              {detail.brokers.length === 0 ? (
+                <span className="text-xs text-muted-foreground">None connected</span>
+              ) : (
+                detail.brokers.map(b => (
+                  <div key={b.broker} className="text-xs capitalize">
+                    {b.broker}
+                    {b.last_synced && (
+                      <span className="text-muted-foreground">
+                        {" "}· last synced {new Date(b.last_synced).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
