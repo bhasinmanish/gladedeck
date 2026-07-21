@@ -6,15 +6,24 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 export const TIMEOUT_STORAGE_KEY = "glade_session_timeout_min";
-export const DEFAULT_TIMEOUT_MIN = 30;
+export const DEFAULT_TIMEOUT_MIN = 15;
+export const MIN_TIMEOUT_MIN     = 10;
+export const MAX_TIMEOUT_MIN     = 60;
 
 const WARN_BEFORE_MS = 2 * 60 * 1000; // show warning 2 minutes before sign-out
+
+// Clamped on read so a previously-saved longer timeout (the old options went up
+// to 8 hours) is tightened for existing users rather than grandfathered in.
+export function clampTimeout(minutes: number): number {
+  if (isNaN(minutes)) return DEFAULT_TIMEOUT_MIN;
+  return Math.min(Math.max(minutes, MIN_TIMEOUT_MIN), MAX_TIMEOUT_MIN);
+}
 
 function getTimeoutMs(): number {
   if (typeof window === "undefined") return DEFAULT_TIMEOUT_MIN * 60_000;
   const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY);
   const minutes = stored ? parseInt(stored, 10) : DEFAULT_TIMEOUT_MIN;
-  return (isNaN(minutes) ? DEFAULT_TIMEOUT_MIN : minutes) * 60_000;
+  return clampTimeout(minutes) * 60_000;
 }
 
 export function SessionGuard({ children }: { children: React.ReactNode }) {
