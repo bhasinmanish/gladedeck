@@ -32,6 +32,13 @@ CATEGORY_LABELS: dict[str, str] = {
     "high_rvol":       "High RVOL Alert",
     "big_gap":         "Big Gap Alert",
     "price_alert":     "Price Alert",
+    "agent_alert":     "Agent Alert",
+}
+
+CONVICTION_COLORS = {
+    "high":   "#4ade80",
+    "medium": "#fbbf24",
+    "low":    "#64748b",
 }
 
 # ── HTML email template ───────────────────────────────────────────────────────
@@ -123,6 +130,94 @@ async def send_alert_email(
         return False
 
 
+# ── Agent alerts ──────────────────────────────────────────────────────────────
+
+def _build_agent_html(agent_name: str, title: str, body: str | None,
+                      symbol: str | None, conviction: str | None) -> str:
+    now_str = datetime.datetime.now().strftime("%b %d, %Y %H:%M ET")
+    chip_color = CONVICTION_COLORS.get((conviction or "").lower(), "#64748b")
+
+    symbol_block = (
+        f'<div style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px;">{symbol}</div>'
+        if symbol else ""
+    )
+    conviction_block = (
+        f'<span style="background:#1e293b;color:{chip_color};font-size:10px;padding:3px 10px;'
+        f'border-radius:99px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">'
+        f'{conviction} conviction</span>'
+        if conviction else ""
+    )
+    body_block = (
+        f'<div style="font-size:14px;color:#cbd5e1;margin-top:12px;line-height:1.7;">{body}</div>'
+        if body else ""
+    )
+
+    return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:480px;margin:0 auto;padding:36px 24px;">
+
+    <div style="margin-bottom:28px;">
+      <span style="font-size:18px;font-weight:700;color:#818cf8;letter-spacing:-0.02em;">Glade Deck</span>
+      <span style="background:#1e293b;color:#64748b;font-size:10px;padding:2px 10px;border-radius:99px;font-weight:500;letter-spacing:0.04em;margin-left:8px;">
+        Agent Alert
+      </span>
+    </div>
+
+    <div style="background:#161922;border:1px solid #1e293b;border-radius:12px;padding:22px;">
+      {symbol_block}
+      <div style="font-size:16px;font-weight:600;color:#f1f5f9;line-height:1.4;">{title}</div>
+      {body_block}
+      <div style="margin-top:16px;">{conviction_block}</div>
+    </div>
+
+    <div style="margin-top:20px;font-size:11px;color:#64748b;line-height:1.6;">
+      From your agent <span style="color:#94a3b8;">{agent_name}</span> · {now_str}<br>
+      <a href="{APP_URL}/agents" style="color:#818cf8;text-decoration:none;">View in Glade Deck</a>
+    </div>
+
+  </div>
+</body>
+</html>"""
+
+
+async def send_agent_alert_email(
+    to: str,
+    agent_name: str,
+    title: str,
+    body: str | None = None,
+    symbol: str | None = None,
+    conviction: str | None = None,
+) -> bool:
+    """Send an agent-generated alert note. Returns True on success."""
+    api_key = os.getenv("RESEND_API_KEY", "")
+    if not api_key:
+        log.warning("RESEND_API_KEY not set — skipping agent email for %s", to)
+        return False
+
+    subject = f"{symbol} — {title} | Glade Deck" if symbol else f"{title} | Glade Deck"
+    html    = _build_agent_html(agent_name, title, body, symbol, conviction)
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                RESEND_API_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"from": FROM_ADDRESS, "to": [to], "subject": subject, "html": html},
+            )
+        if resp.status_code in (200, 201):
+            log.info("Agent email sent → %s (%s)", to, subject)
+            return True
+        log.warning("Resend %d: %s", resp.status_code, resp.text[:200])
+        return False
+    except Exception as exc:
+        log.warning("Agent email send failed: %s", exc)
+        return False
+
+
 # ── Supabase helpers ──────────────────────────────────────────────────────────
 
 def get_notif_prefs(db: Any, user_id: str) -> dict:
@@ -130,7 +225,7 @@ def get_notif_prefs(db: Any, user_id: str) -> dict:
     try:
         result = (
             db.table("notification_prefs")
-            .select("email_enabled,email_news,email_scanner,email_price_alerts")
+            .select("email_enabled,email_news,email_scanner,email_price_alerts,email_agents")
             .eq("user_id", user_id)
             .maybeSingle()
             .execute()

@@ -6,6 +6,7 @@ const DEFAULTS = {
   email_news:          true,
   email_scanner:       false,
   email_price_alerts:  true,
+  email_agents:        true,
 };
 
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from("notification_prefs")
-    .select("email_enabled,email_news,email_scanner,email_price_alerts")
+    .select("email_enabled,email_news,email_scanner,email_price_alerts,email_agents")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
         email_news:          body.email_news          ?? true,
         email_scanner:       body.email_scanner       ?? false,
         email_price_alerts:  body.email_price_alerts  ?? true,
+        email_agents:        body.email_agents        ?? true,
         updated_at:          new Date().toISOString(),
       },
       { onConflict: "user_id" }

@@ -42,12 +42,14 @@ const EMAIL_DEFAULTS = {
   email_news:         true,
   email_scanner:      false,
   email_price_alerts: true,
+  email_agents:       true,
 };
 
 const EMAIL_CATEGORIES = [
   { key: "email_news",         label: "Breaking News",    desc: "Earnings, FDA, M&A, analyst updates"   },
   { key: "email_scanner",      label: "Scanner Alerts",   desc: "High RVOL, big gap setups"             },
   { key: "email_price_alerts", label: "My Price Alerts",  desc: "Your custom price alert conditions"    },
+  { key: "email_agents",       label: "Agent Alerts",     desc: "Notes from your AI agents"             },
 ] as const;
 
 // ─── Props ────────────────────────────────────────────────────────────────────

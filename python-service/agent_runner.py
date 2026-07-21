@@ -14,6 +14,7 @@ and is only ever given real numbers computed here — it never sees a live feed 
 is instructed not to invent data.
 """
 
+import asyncio
 import datetime
 import json
 import logging
@@ -23,11 +24,15 @@ from typing import Any, Optional
 import yfinance as yf
 from supabase import create_client, Client
 
+from news import fetch_news_for_symbols
+from email_sender import send_agent_alert_email, get_notif_prefs, get_user_email
+
 log = logging.getLogger(__name__)
 
 HISTORY_PERIOD = "1y"          # enough for a 200-day SMA
 DEFAULT_COOLDOWN_DAYS = 7
 MAX_SYMBOLS_PER_AGENT = 60     # guard against runaway universes
+NEWS_LOOKBACK_HOURS = 72       # context window for headlines attached to an alert
 
 
 def _get_supabase() -> Client:
@@ -184,6 +189,16 @@ def _eval_trigger(trigger: dict, symbol: str, cache: dict[str, Any]) -> Optional
     return None
 
 
+def _recent_news(symbol: str) -> list[dict]:
+    """Recent important headlines for a symbol — the context layer for the note."""
+    try:
+        results = asyncio.run(fetch_news_for_symbols([symbol], since_hours=NEWS_LOOKBACK_HOURS))
+        return results.get(symbol, [])[:6]
+    except Exception as exc:
+        log.warning("News fetch failed for %s: %s", symbol, exc)
+        return []
+
+
 def _volume_ratio(volume) -> Optional[float]:
     """Latest volume as a multiple of its trailing 20-day average."""
     if len(volume) < 21:
@@ -213,8 +228,14 @@ def _recently_alerted(db: Client, agent_id: str, symbol: str, cooldown_days: int
 
 _NOTE_SYSTEM = """You write short trading alert notes for an agent monitoring a trader's portfolio.
 
-You are given ONLY the computed evidence below. Never invent prices, volumes, dates, news, or
-fundamentals that are not in the evidence. If the evidence is thin, say so plainly.
+The mechanical trigger is only the messenger — your job is the thesis. Use the recent headlines to
+explain whether the move looks like it has a real catalyst behind it or is just noise.
+
+Hard rules on facts:
+- The computed evidence and the headlines are the ONLY facts you have.
+- Never invent prices, volumes, dates, news, fundamentals, or analyst views beyond them.
+- If there are no headlines, say the move has no obvious catalyst — do not speculate about one.
+- You have no live feed and no position sizing information.
 
 Write a practical note in 2-4 sentences — no jargon, no hype, no emoji. End with a clear read:
 buy, hold, sell, or stay away.
@@ -222,11 +243,13 @@ buy, hold, sell, or stay away.
 Respond with strict JSON only, no markdown fence:
 {"title": "<8 words max>", "body": "<the note>", "conviction": "high" | "medium" | "low"}
 
-Set conviction by how decisive the evidence is on its own: a 200-day break on heavy volume is high,
-a marginal cross on quiet volume is low."""
+Set conviction by how well the trigger and the context agree. A 200-day break on heavy volume with a
+confirming headline is high. A marginal cross on quiet volume with no news is low. When the trigger and
+the news point in opposite directions, say so and lean low."""
 
 
-def _compose_note(agent: dict, symbol: str, evidence: dict) -> Optional[dict]:
+def _compose_note(agent: dict, symbol: str, evidence: dict,
+                  headlines: Optional[list[dict]] = None) -> Optional[dict]:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         log.warning("ANTHROPIC_API_KEY not set — writing a plain note instead")
@@ -239,13 +262,23 @@ def _compose_note(agent: dict, symbol: str, evidence: dict) -> Optional[dict]:
         return None
 
     spec = agent.get("spec") or {}
+
+    if headlines:
+        news_block = "\n".join(
+            f"- [{h.get('category', 'news')}] {h.get('title')} ({h.get('publisher') or 'unknown'})"
+            for h in headlines
+        )
+    else:
+        news_block = "(no notable headlines in the last 3 days)"
+
     prompt = (
         f"Agent: {agent.get('name')}\n"
         f"Purpose: {agent.get('description') or '—'}\n"
         f"Context the trader cares about: {', '.join(spec.get('context') or []) or '—'}\n"
         f"Preferred alert style: {spec.get('output_style') or 'concise and practical'}\n\n"
         f"Symbol: {symbol}\n"
-        f"Computed evidence (the only facts you have): {json.dumps(evidence)}"
+        f"Computed evidence (mechanical trigger): {json.dumps(evidence)}\n\n"
+        f"Recent headlines (context layer):\n{news_block}"
     )
 
     try:
@@ -282,6 +315,34 @@ def _fallback_note(symbol: str, evidence: dict) -> dict:
         title = f"{symbol} triggered {t}"
         body = json.dumps(evidence)
     return {"title": title, "body": body, "conviction": "medium"}
+
+
+# ── Email delivery ───────────────────────────────────────────────────────────
+
+def _maybe_email(db: Client, user_id: str, agent: dict, symbol: str, note: dict) -> None:
+    """Email the note if the user has email alerts and agent alerts both enabled."""
+    try:
+        prefs = get_notif_prefs(db, user_id)
+        if not prefs.get("email_enabled"):
+            return
+        # email_agents defaults to True when the column/row is absent.
+        if prefs.get("email_agents") is False:
+            return
+
+        to = get_user_email(db, user_id)
+        if not to:
+            return
+
+        asyncio.run(send_agent_alert_email(
+            to=to,
+            agent_name=agent.get("name") or "Agent",
+            title=note.get("title", f"{symbol} alert"),
+            body=note.get("body"),
+            symbol=symbol,
+            conviction=note.get("conviction"),
+        ))
+    except Exception as exc:
+        log.warning("Agent email step failed for %s: %s", symbol, exc)
 
 
 # ── Main entry ───────────────────────────────────────────────────────────────
@@ -336,7 +397,8 @@ def run_agents() -> int:
                 continue
 
             combined = fired[0] if len(fired) == 1 else {"trigger": "multiple", "signals": fired}
-            note = _compose_note(agent, symbol, combined) or _fallback_note(symbol, combined)
+            headlines = _recent_news(symbol)
+            note = _compose_note(agent, symbol, combined, headlines) or _fallback_note(symbol, combined)
 
             try:
                 db.table("agent_alerts").insert({
@@ -350,6 +412,9 @@ def run_agents() -> int:
                 written += 1
             except Exception as exc:
                 log.error("Failed writing alert for %s: %s", symbol, exc)
+                continue
+
+            _maybe_email(db, user_id, agent, symbol, note)
 
         try:
             db.table("agents").update({
