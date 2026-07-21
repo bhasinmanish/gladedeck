@@ -169,6 +169,7 @@ export interface AgentSpec {
   symbols?:             string[]; // used when universe_type is "symbols"
   triggers?:            string[]; // human-readable trigger descriptions (for display)
   structured_triggers?: StructuredTrigger[]; // what the runner actually evaluates
+  trigger_logic?:       "any" | "all";       // fire on a single trigger, or require all
   schedule?:            string;   // human-readable cadence, e.g. "Daily at 8:00 AM ET"
   run_interval?:        "5m" | "15m" | "30m" | "1h" | "4h" | "daily"; // machine cadence
   cooldown_days?:       number;   // per-symbol quiet period after an alert

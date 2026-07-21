@@ -24,6 +24,22 @@ const CONVICTION_STYLES: Record<string, string> = {
   low:    "text-muted-foreground border-border bg-muted/40",
 };
 
+const INTERVAL_LABELS: Record<string, string> = {
+  "5m": "every 5 min", "15m": "every 15 min", "30m": "every 30 min",
+  "1h": "hourly", "4h": "every 4 hours", daily: "daily",
+};
+
+// "3m ago" / "2h ago" / "5d ago" — so a quiet agent is visibly alive.
+function timeAgo(iso: string | null): string {
+  if (!iso) return "never run yet";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1)    return "just now";
+  if (mins < 60)   return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24)  return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export function AgentsPage({ initialAgents, initialAlerts }: Props) {
   const [agents, setAgents]   = useState<Agent[]>(initialAgents);
   const [alerts, setAlerts]   = useState<AlertRow[]>(initialAlerts);
@@ -195,11 +211,19 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
                       </ul>
                     )}
 
-                    {agent.schedule && (
-                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-border">
-                        <Clock className="h-3 w-3" /> {agent.schedule}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground pt-2 border-t border-border">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="h-3 w-3" />
+                        {INTERVAL_LABELS[String(agent.spec?.run_interval ?? "daily")] ?? "daily"}
+                      </span>
+                      <span className={cn(agent.last_run_at ? "" : "text-amber-400/80")}>
+                        Last checked {timeAgo(agent.last_run_at)}
+                      </span>
+                      <span>
+                        {alerts.filter(a => a.agent_id === agent.id).length} alert
+                        {alerts.filter(a => a.agent_id === agent.id).length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
                   </div>
                 );
               })}

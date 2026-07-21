@@ -54,6 +54,13 @@ const PROPOSE_AGENT_TOOL: Anthropic.Tool = {
           required: ["type"],
         },
       },
+      trigger_logic: {
+        type: "string",
+        enum: ["any", "all"],
+        description:
+          "'any' (default) fires when a single trigger hits. 'all' requires every trigger to hit at " +
+          "once — use it to demand confirmation, e.g. a 200-day break AND a volume spike.",
+      },
       schedule:      { type: "string", description: "Human-readable cadence, e.g. 'Every 15 minutes during market hours'." },
       run_interval: {
         type: "string",
@@ -104,6 +111,14 @@ trigger types are machine-evaluable:
 - gain           — the same in the upward direction
 - volume_spike   — volume at N times its 20-day average
 - earnings_within — earnings landing within N calendar days
+
+Combining triggers. By default any single trigger fires the agent. Set trigger_logic to "all" when the
+user wants confirmation before being told — "a 200-day break ONLY if volume is heavy" is trigger_logic
+"all" with an sma_cross plus a volume_spike. This is the main tool for cutting noise, so reach for it
+whenever the user says they want fewer or higher-quality alerts.
+
+Universes. universe_type "market" resolves to broad index proxies (SPY, QQQ, IWM, DIA) — use it for
+macro or market-regime agents, not as a way to scan every stock.
 
 Anything else — thesis drift, guidance language, margin pressure, backlog cracks, news tone, options
 flow, macro reads — cannot be a trigger. Those belong in the context field: the judgement layer applied

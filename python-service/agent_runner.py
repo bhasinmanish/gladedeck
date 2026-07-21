@@ -44,6 +44,10 @@ NEWS_LOOKBACK_HOURS = 72
 INTERVAL_MINUTES = {
     "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "daily": 1440,
 }
+
+# What a "market" universe resolves to — broad index proxies, so macro-style
+# agents evaluate something real instead of silently watching nothing.
+MARKET_PROXIES = ["SPY", "QQQ", "IWM", "DIA"]
 DEFAULT_INTRADAY_COOLDOWN_H = 4.0
 DEFAULT_DAILY_COOLDOWN_H    = 168.0   # 7 days
 
@@ -106,7 +110,10 @@ def _resolve_universe(db: Client, agent: dict, user_id: str) -> list[str]:
                     out.append(s.upper())
         return out[:MAX_SYMBOLS_PER_AGENT]
 
-    return []   # "market" — not a per-symbol universe
+    if kind == "market":
+        return MARKET_PROXIES
+
+    return []
 
 
 # ── Daily reference levels (cached once per day) ─────────────────────────────
@@ -463,6 +470,9 @@ def run_agents(mode: str = "daily") -> int:
         triggers = spec.get("structured_triggers") or []
         cooldown_h = _cooldown_hours(spec, interval)
         user_id = agent["user_id"]
+        # "any" (default) fires when a single trigger hits; "all" requires every
+        # trigger to hit at once — e.g. a 200-day break AND a volume spike.
+        require_all = str(spec.get("trigger_logic") or "any").lower() == "all"
 
         for symbol in universes.get(agent["id"], []):
             quote = quotes.get(symbol)
@@ -485,8 +495,13 @@ def run_agents(mode: str = "daily") -> int:
 
             if not fired:
                 continue
+            if require_all and len(fired) < len(triggers):
+                continue
 
-            combined = fired[0] if len(fired) == 1 else {"trigger": "multiple", "signals": fired}
+            combined = fired[0] if len(fired) == 1 else {
+                "trigger": "all_of" if require_all else "any_of",
+                "signals": fired,
+            }
             headlines = _recent_news(symbol)
             note = _compose_note(agent, symbol, combined, headlines) or _fallback_note(symbol, combined)
 
