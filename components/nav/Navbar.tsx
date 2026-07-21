@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Alerts",       href: "/alerts"       },
   { label: "Daily Review", href: "/daily-review" },
   { label: "Trade Log",    href: "/trade-log"    },
+  { label: "Orders",       href: "/orders"       },
   { label: "Strategies",   href: "/strategies"   },
   { label: "Reports",      href: "/reports"      },
 ];

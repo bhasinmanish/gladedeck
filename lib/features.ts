@@ -24,7 +24,7 @@ export const FEATURES: FeatureDef[] = [
   { key: "trade_log",    name: "Trade Log",             description: "Full trade history and performance stats.",           route: "/trade-log" },
   { key: "strategies",   name: "Strategies",            description: "Strategy library, custom strategies, trade ideas.",   route: "/strategies" },
   { key: "reports",      name: "Reports & Analytics",   description: "Performance analytics and reporting.",                route: "/reports" },
-  { key: "broker_sync",  name: "Broker Integration",    description: "Connect Schwab and auto-import trades.",              },
+  { key: "broker_sync",  name: "Broker Integration",    description: "Connect Schwab, view orders, and auto-import trades.", route: "/orders" },
 ];
 
 export const DEFAULT_FEATURE_PRICE = 1.0;
