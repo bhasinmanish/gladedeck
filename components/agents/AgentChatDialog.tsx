@@ -32,7 +32,9 @@ interface Proposal {
   triggers?:            string[];
   structured_triggers?: StructuredTrigger[];
   schedule?:            string;
+  run_interval?:        string;
   cooldown_days?:       number;
+  cooldown_hours?:      number;
   suppress?:            string[];
   context?:             string[];
   output_style?:        string;
@@ -221,9 +223,25 @@ export function AgentChatDialog({ open, onClose, onCreated }: Props) {
                 {proposal.triggers && proposal.triggers.length > 0 && (
                   <ListRow label="Watching for" items={proposal.triggers} />
                 )}
-                {proposal.schedule && <Row label="Runs" value={proposal.schedule} />}
-                {proposal.cooldown_days != null && (
-                  <Row label="Cooldown" value={`${proposal.cooldown_days} days per symbol`} />
+                {proposal.schedule && (
+                  <Row
+                    label="Runs"
+                    value={
+                      proposal.run_interval && proposal.run_interval !== "daily"
+                        ? `${proposal.schedule} · every ${proposal.run_interval} (market hours)`
+                        : proposal.schedule
+                    }
+                  />
+                )}
+                {(proposal.cooldown_hours != null || proposal.cooldown_days != null) && (
+                  <Row
+                    label="Cooldown"
+                    value={
+                      proposal.cooldown_hours != null
+                        ? `${proposal.cooldown_hours} hours per symbol`
+                        : `${proposal.cooldown_days} days per symbol`
+                    }
+                  />
                 )}
                 {proposal.context && proposal.context.length > 0 && (
                   <ListRow label="Context" items={proposal.context} />
