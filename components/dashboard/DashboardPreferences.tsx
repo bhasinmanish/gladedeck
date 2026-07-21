@@ -16,7 +16,7 @@ import {
   DEFAULT_PREFS, loadPrefs, savePrefs,
 } from "@/lib/dashboard-widgets";
 import {
-  TIMEOUT_STORAGE_KEY, DEFAULT_TIMEOUT_MIN,
+  TIMEOUT_STORAGE_KEY, DEFAULT_TIMEOUT_MIN, clampTimeout,
 } from "@/components/session/SessionGuard";
 
 // ─── Widget metadata ──────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ export function DashboardPreferences({ open, onClose }: Props) {
     setTestSent(false);
     setTestError(null);
     const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY);
-    setTimeoutMin(stored ? parseInt(stored, 10) : DEFAULT_TIMEOUT_MIN);
+    setTimeoutMin(stored ? clampTimeout(parseInt(stored, 10)) : DEFAULT_TIMEOUT_MIN);
 
     fetch("/api/notification-prefs")
       .then(r => r.ok ? r.json() : null)
@@ -402,13 +402,11 @@ export function DashboardPreferences({ open, onClose }: Props) {
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  { label: "10 min", value: 10  },
-                  { label: "15 min", value: 15  },
-                  { label: "30 min", value: 30  },
-                  { label: "1 hour", value: 60  },
-                  { label: "2 hours", value: 120 },
-                  { label: "4 hours", value: 240 },
-                  { label: "8 hours", value: 480 },
+                  { label: "10 min", value: 10 },
+                  { label: "15 min", value: 15 },
+                  { label: "30 min", value: 30 },
+                  { label: "45 min", value: 45 },
+                  { label: "1 hour", value: 60 },
                 ].map(opt => (
                   <button
                     key={opt.value}
