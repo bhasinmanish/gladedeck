@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Pull filled orders from all accounts and map them to trades.
     const mapped: NonNullable<ReturnType<typeof mapOrderToTrade>>[] = [];
     for (const acct of accountNumbers) {
-      const orders = await getOrders(accessToken, acct.hashValue, fmt(fromDate), fmt(toDate));
+      const orders = await getOrders(accessToken, acct.hashValue, fmt(fromDate), fmt(toDate), "FILLED");
       if (!Array.isArray(orders)) continue;
       for (const o of orders) {
         const trade = mapOrderToTrade(o, user.id);

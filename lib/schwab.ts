@@ -136,8 +136,10 @@ export async function getOrders(
   accountHash: string,
   fromDate: string,
   toDate: string,
+  status?: string,   // omit to fetch every status (working, filled, canceled, …)
 ) {
-  const params = new URLSearchParams({ fromEnteredTime: fromDate, toEnteredTime: toDate, status: "FILLED" });
+  const params = new URLSearchParams({ fromEnteredTime: fromDate, toEnteredTime: toDate });
+  if (status) params.set("status", status);
   return schwabGet(`/accounts/${accountHash}/orders?${params}`, accessToken);
 }
 
@@ -146,6 +148,11 @@ export async function getOrders(
 export interface SchwabOrder {
   orderId:              number;
   status:               string;
+  quantity?:            number;
+  filledQuantity?:      number;
+  remainingQuantity?:   number;
+  orderType?:           string;
+  price?:               number;
   enteredTime:          string;
   closeTime?:           string;
   orderLegCollection:   Array<{
@@ -157,6 +164,44 @@ export interface SchwabOrder {
     activityType:   string;
     executionLegs?: Array<{ price: number; quantity: number; time: string }>;
   }>;
+}
+
+// ── Order view (for the Orders page — all statuses) ──────────────────────────
+
+export interface SchwabOrderView {
+  orderId:        string;
+  symbol:         string;
+  instruction:    string;   // BUY / SELL / BUY_TO_OPEN / …
+  orderType:      string;   // MARKET / LIMIT / STOP / …
+  quantity:       number;
+  filledQuantity: number;
+  price:          number | null;
+  status:         string;   // FILLED / WORKING / CANCELED / REJECTED / EXPIRED / …
+  enteredTime:    string;
+  closeTime:      string | null;
+  account:        string;
+}
+
+export function mapOrderToView(order: SchwabOrder, accountLabel: string): SchwabOrderView | null {
+  const leg = order.orderLegCollection?.[0];
+  if (!leg) return null;
+
+  const exec     = order.orderActivityCollection?.find(a => a.activityType === "EXECUTION");
+  const fillPrice = exec?.executionLegs?.[0]?.price;
+
+  return {
+    orderId:        String(order.orderId),
+    symbol:         leg.instrument.symbol,
+    instruction:    leg.instruction,
+    orderType:      order.orderType ?? "—",
+    quantity:       order.quantity ?? leg.quantity,
+    filledQuantity: order.filledQuantity ?? 0,
+    price:          order.price ?? fillPrice ?? null,
+    status:         order.status,
+    enteredTime:    order.enteredTime,
+    closeTime:      order.closeTime ?? null,
+    account:        accountLabel,
+  };
 }
 
 export function mapOrderToTrade(order: SchwabOrder, userId: string) {
