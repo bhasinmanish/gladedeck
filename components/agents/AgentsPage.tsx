@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Bot, Plus, Bell, Trash2, Play, Pause, Clock, Loader2, Inbox, CheckCheck,
+  Bot, Plus, Bell, Trash2, Play, Pause, Clock, Loader2, Inbox, CheckCheck, Sparkles, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentChatDialog } from "./AgentChatDialog";
+import { AGENT_CATALOG, universeLabel, type CatalogAgent } from "@/lib/agent-catalog";
 import type { Agent, AgentAlert } from "@/lib/types";
 
 type AlertRow = AgentAlert & { agents?: { name: string } | null };
@@ -45,8 +46,35 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
   const [alerts, setAlerts]   = useState<AlertRow[]>(initialAlerts);
   const [chatOpen, setChatOpen] = useState(false);
   const [busyId, setBusyId]   = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
 
   const unread = alerts.filter(a => !a.is_read).length;
+  const installedNames = new Set(agents.map(a => a.name));
+
+  // ── Install a prebuilt agent ────────────────────────────────────────────────
+
+  async function installAgent(catalog: CatalogAgent) {
+    if (installedNames.has(catalog.name)) return;
+    setInstalling(catalog.id);
+    try {
+      const res = await fetch("/api/agents", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          name:        catalog.name,
+          description: catalog.description,
+          schedule:    catalog.schedule,
+          spec:        catalog.spec,
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setAgents(prev => [created, ...prev]);
+      }
+    } finally {
+      setInstalling(null);
+    }
+  }
 
   // ── Agent actions ───────────────────────────────────────────────────────────
 
@@ -114,6 +142,9 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
           <TabsList className="h-8 shrink-0">
             <TabsTrigger value="agents" className="text-xs gap-1.5">
               <Bot className="h-3.5 w-3.5" /> My Agents
+            </TabsTrigger>
+            <TabsTrigger value="popular" className="text-xs gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> Popular
             </TabsTrigger>
             <TabsTrigger value="alerts" className="text-xs gap-1.5">
               <Bell className="h-3.5 w-3.5" /> Alerts
@@ -237,6 +268,55 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
               running.
             </p>
           )}
+        </TabsContent>
+
+        {/* ── Popular ───────────────────────────────────────────────────────── */}
+        <TabsContent value="popular" className="flex-1 min-h-0 overflow-auto mt-0 p-4 md:p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Ready-made agents built on Glade Deck&apos;s live triggers. Tap{" "}
+            <Plus className="h-3.5 w-3.5 inline -mt-0.5" /> to add one to your agents — you can tweak or
+            delete it anytime.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {AGENT_CATALOG.map(catalog => {
+              const installed = installedNames.has(catalog.name);
+              return (
+                <div key={catalog.id} className="rounded-lg border border-border bg-card p-4 flex gap-3">
+                  <div className={cn(
+                    "h-10 w-10 rounded-full shrink-0 bg-gradient-to-br flex items-center justify-center",
+                    catalog.gradient
+                  )}>
+                    <Bot className="h-5 w-5 text-white/90" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-sm">{catalog.name}</p>
+                      {installed ? (
+                        <span className="shrink-0 flex items-center gap-1 text-[10px] text-profit font-medium">
+                          <Check className="h-3.5 w-3.5" /> Installed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => installAgent(catalog)}
+                          disabled={installing === catalog.id}
+                          title="Add to my agents"
+                          className="shrink-0 h-7 w-7 rounded-full border border-border hover:border-primary hover:bg-primary/10 flex items-center justify-center transition-colors disabled:opacity-50"
+                        >
+                          {installing === catalog.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Plus className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{catalog.description}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-2 flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" /> {catalog.schedule} · {universeLabel(catalog.spec)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </TabsContent>
 
         {/* ── Alerts ────────────────────────────────────────────────────────── */}
