@@ -11,7 +11,8 @@ export interface FeatureDef {
   key:         string;
   name:        string;
   description: string;
-  route?:      string; // dashboard route this feature gates, if any
+  route?:      string;   // primary route this feature gates
+  routes?:     string[]; // additional routes it also gates (for nav badges)
 }
 
 export const FEATURES: FeatureDef[] = [
@@ -25,7 +26,7 @@ export const FEATURES: FeatureDef[] = [
   { key: "strategies",   name: "Strategies",            description: "Strategy library, custom strategies, trade ideas.",   route: "/strategies" },
   { key: "reports",      name: "Reports & Analytics",   description: "Performance analytics and reporting.",                route: "/reports" },
   { key: "agents",       name: "AI Agents",             description: "Build AI agents that monitor markets and your portfolio.", route: "/agents" },
-  { key: "broker_sync",  name: "Broker Integration",    description: "Connect Schwab, view orders, and auto-import trades.", route: "/orders" },
+  { key: "broker_sync",  name: "Broker Integration",    description: "Connect Schwab, view your portfolio and orders, and auto-import trades.", route: "/orders", routes: ["/portfolio"] },
 ];
 
 export const DEFAULT_FEATURE_PRICE = 1.0;
@@ -41,5 +42,5 @@ export function featureByKey(key: string): FeatureDef | undefined {
 }
 
 export function featureByRoute(route: string): FeatureDef | undefined {
-  return FEATURES.find(f => f.route === route);
+  return FEATURES.find(f => f.route === route || f.routes?.includes(route));
 }
