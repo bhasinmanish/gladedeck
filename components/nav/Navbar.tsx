@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Orders",       href: "/orders"       },
   { label: "Strategies",   href: "/strategies"   },
   { label: "Agents",       href: "/agents"       },
+  { label: "Notes",        href: "/notes"        },
   { label: "Reports",      href: "/reports"      },
 ];
 

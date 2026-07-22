@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AddTradeDialog } from "@/components/trades/AddTradeDialog";
 import { Plus, Trash2, Pencil, Search, ChevronUp, ChevronDown, ChevronsUpDown, X, Loader2, Check, Minus, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSymbolNotes } from "@/components/notes/useSymbolNotes";
+import { NoteStar } from "@/components/notes/NoteStar";
+import { SymbolNoteDialog } from "@/components/notes/SymbolNoteDialog";
 import type { Trade, Strategy } from "@/lib/types";
 
 interface Props {
@@ -104,6 +107,9 @@ export function TradeTable({ trades: initial, strategies }: Props) {
   const [selectMode, setSelectMode]     = useState(false);
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editSym, setEditSym]           = useState<string | null>(null);
+
+  const { notes, save, remove } = useSymbolNotes();
 
   const schwabCount = trades.filter(t => t.source === "schwab").length;
 
@@ -437,9 +443,12 @@ export function TradeTable({ trades: initial, strategies }: Props) {
                     </TableCell>
                   )}
                   <TableCell>
-                    <Link href={`/stocks/${t.symbol}`} className="font-bold text-primary hover:underline">
-                      {t.symbol}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link href={`/stocks/${t.symbol}`} className="font-bold text-primary hover:underline">
+                        {t.symbol}
+                      </Link>
+                      <NoteStar body={notes[t.symbol]?.body} onClick={() => setEditSym(t.symbol)} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -507,6 +516,14 @@ export function TradeTable({ trades: initial, strategies }: Props) {
         onSaved={handleSaved}
         strategies={strategies}
         initialTrade={editingTrade}
+      />
+
+      <SymbolNoteDialog
+        symbol={editSym}
+        initial={editSym ? notes[editSym]?.body ?? "" : ""}
+        onClose={() => setEditSym(null)}
+        onSave={(sym, b) => { save(sym, b, "trade_log"); setEditSym(null); }}
+        onDelete={(sym)  => { remove(sym); setEditSym(null); }}
       />
 
       {/* Clear history confirmation */}

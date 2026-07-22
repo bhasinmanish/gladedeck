@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Loader2, ArrowUpRight, ArrowDownRight, Link2, RefreshCw, TrendingUp } from "lucide-react";
+import { Loader2, ArrowUpRight, ArrowDownRight, Link2, RefreshCw, TrendingUp, StickyNote } from "lucide-react";
+import { useSymbolNotes } from "@/components/notes/useSymbolNotes";
+import { NoteStar } from "@/components/notes/NoteStar";
+import { SymbolNoteDialog } from "@/components/notes/SymbolNoteDialog";
 
 interface Position {
   symbol:       string;
@@ -31,11 +34,57 @@ function money(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
+// The portfolio's "Notes" side view — notes on the symbols you hold.
+function PortfolioNotes({
+  positions, notes, onEdit,
+}: {
+  positions: Position[];
+  notes: Record<string, { body: string }>;
+  onEdit: (symbol: string) => void;
+}) {
+  const held = positions.map(p => p.symbol);
+  const withNotes = held.filter(s => notes[s]?.body);
+
+  if (withNotes.length === 0) {
+    return (
+      <div className="text-center py-10 text-muted-foreground">
+        <StickyNote className="h-7 w-7 mx-auto opacity-30 mb-2" />
+        <p className="text-sm font-medium text-foreground">No holding notes yet</p>
+        <p className="text-xs mt-1">
+          Switch to Holdings and tap the note icon next to a symbol to jot something down.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {withNotes.map(sym => (
+        <button
+          key={sym}
+          onClick={() => onEdit(sym)}
+          className="w-full text-left rounded-lg border border-border bg-card p-3 hover:border-primary/40 transition-colors"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="font-bold text-primary text-sm font-mono">{sym}</span>
+            <StickyNote className="h-3 w-3 text-amber-400" />
+          </div>
+          <p className="text-xs text-muted-foreground whitespace-pre-wrap">{notes[sym].body}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PortfolioPanel() {
   const [data, setData]     = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
   const [tf, setTf]         = useState<Timeframe>("1D");
+  const [view, setView]     = useState<"holdings" | "notes">("holdings");
+  const [editSym, setEditSym] = useState<string | null>(null);
+
+  const { notes, save, remove } = useSymbolNotes();
 
   async function load() {
     setLoading(true);
@@ -132,47 +181,77 @@ export function PortfolioPanel() {
         ))}
       </div>
 
-      {/* Holdings */}
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-          Holdings ({data.positions.length})
-        </p>
-        {data.positions.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-6 text-center">No open positions.</p>
-        ) : (
-          <div className="rounded-lg border border-border divide-y divide-border">
-            {data.positions.map(p => {
-              const pUp = (p.dayChangePct ?? 0) >= 0;
-              return (
-                <div key={p.symbol} className="flex items-center justify-between px-3 py-2.5">
-                  <div className="min-w-0">
-                    <Link href={`/stocks/${p.symbol}`} className="font-bold text-primary hover:underline text-sm">
-                      {p.symbol}
-                    </Link>
-                    <span className="text-[10px] text-muted-foreground ml-2">
-                      {p.quantity.toLocaleString()} sh
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono text-sm">{money(p.marketValue)}</div>
-                    {p.dayChangePct != null && (
-                      <div className={cn("text-[11px] font-medium flex items-center justify-end gap-0.5", pUp ? "text-profit" : "text-loss")}>
-                        {pUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {pUp ? "+" : ""}{p.dayChangePct.toFixed(2)}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Holdings / Notes toggle */}
+      <div className="flex items-center gap-1 bg-muted p-1 rounded-lg w-fit">
+        {(["holdings", "notes"] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={cn(
+              "px-3 py-1 rounded text-xs font-medium capitalize transition-colors flex items-center gap-1.5",
+              view === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {v === "notes" && <StickyNote className="h-3 w-3" />}
+            {v}
+          </button>
+        ))}
       </div>
+
+      {view === "holdings" ? (
+        <div>
+          {data.positions.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-6 text-center">No open positions.</p>
+          ) : (
+            <div className="rounded-lg border border-border divide-y divide-border">
+              {data.positions.map(p => {
+                const pUp = (p.dayChangePct ?? 0) >= 0;
+                return (
+                  <div key={p.symbol} className="flex items-center justify-between px-3 py-2.5">
+                    <div className="min-w-0 flex items-center gap-1.5">
+                      <Link href={`/stocks/${p.symbol}`} className="font-bold text-primary hover:underline text-sm">
+                        {p.symbol}
+                      </Link>
+                      <NoteStar body={notes[p.symbol]?.body} onClick={() => setEditSym(p.symbol)} />
+                      <span className="text-[10px] text-muted-foreground ml-1">
+                        {p.quantity.toLocaleString()} sh
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-sm">{money(p.marketValue)}</div>
+                      {p.dayChangePct != null && (
+                        <div className={cn("text-[11px] font-medium flex items-center justify-end gap-0.5", pUp ? "text-profit" : "text-loss")}>
+                          {pUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {pUp ? "+" : ""}{p.dayChangePct.toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <PortfolioNotes
+          positions={data.positions}
+          notes={notes}
+          onEdit={setEditSym}
+        />
+      )}
 
       <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
         <TrendingUp className="h-3 w-3" />
         Stock holdings via Schwab. Longer return windows build up from daily snapshots.
       </p>
+
+      <SymbolNoteDialog
+        symbol={editSym}
+        initial={editSym ? notes[editSym]?.body ?? "" : ""}
+        onClose={() => setEditSym(null)}
+        onSave={(sym, b)   => { save(sym, b, "portfolio"); setEditSym(null); }}
+        onDelete={(sym)    => { remove(sym); setEditSym(null); }}
+      />
     </div>
   );
 }
