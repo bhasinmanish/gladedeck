@@ -71,9 +71,14 @@ async function refreshAccessToken(refreshToken: string) {
 
 // ── Token management ──────────────────────────────────────────────────────────
 
-// Returns a valid access token for the current user, refreshing if needed.
-export async function getValidAccessToken(userId: string): Promise<string> {
-  const supabase = await createClient();
+// Minimal shape shared by the session client and the service-role admin client.
+type SupabaseLike = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+// Returns a valid access token for a user, refreshing if needed. Pass a client
+// (e.g. the service-role admin client) to run outside a user session, such as
+// from a cron that iterates every connected account.
+export async function getValidAccessToken(userId: string, client?: SupabaseLike): Promise<string> {
+  const supabase = client ?? await createClient();
 
   const { data, error } = await supabase
     .from("broker_connections")
@@ -121,6 +126,53 @@ async function schwabGet(path: string, accessToken: string) {
 
 export async function getAccounts(accessToken: string) {
   return schwabGet("/accounts?fields=positions", accessToken);
+}
+
+// ── Positions (portfolio holdings) ───────────────────────────────────────────
+
+export interface PositionView {
+  symbol:         string;
+  quantity:       number;
+  marketValue:    number;
+  dayChange:      number;         // dollar P&L today
+  dayChangePct:   number | null;  // percent P&L today
+  assetType:      string;
+}
+
+// Flattens Schwab's nested accounts→positions response into a flat holdings
+// list plus the total account value. Long and short are netted per symbol.
+export function mapPositions(accounts: unknown): { positions: PositionView[]; totalValue: number } {
+  const rows: PositionView[] = [];
+  let totalValue = 0;
+
+  const list = Array.isArray(accounts) ? accounts : [];
+  for (const acct of list) {
+    const sa = (acct as any)?.securitiesAccount; // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!sa) continue;
+
+    // Prefer the broker's own liquidation value (includes cash) for the total.
+    const liq = sa.currentBalances?.liquidationValue;
+    if (typeof liq === "number") totalValue += liq;
+
+    for (const p of sa.positions ?? []) {
+      const qty = (p.longQuantity ?? 0) - (p.shortQuantity ?? 0);
+      if (qty === 0 && !p.marketValue) continue;
+      rows.push({
+        symbol:       p.instrument?.symbol ?? "—",
+        quantity:     qty,
+        marketValue:  p.marketValue ?? 0,
+        dayChange:    p.currentDayProfitLoss ?? 0,
+        dayChangePct: p.currentDayProfitLossPercentage ?? null,
+        assetType:    p.instrument?.assetType ?? "EQUITY",
+      });
+    }
+  }
+
+  // Fall back to summing positions if no liquidation value was present.
+  if (totalValue === 0) totalValue = rows.reduce((s, r) => s + r.marketValue, 0);
+
+  rows.sort((a, b) => b.marketValue - a.marketValue);
+  return { positions: rows, totalValue };
 }
 
 // Returns the account number → hash mapping. The hash is what all other
