@@ -34,8 +34,12 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Bypass auth check for webhooks and the OAuth callback route
-  if (pathname.startsWith("/api/webhooks") || pathname.startsWith("/auth/")) {
+  // Bypass auth check for webhooks, cron jobs, and the OAuth callback route
+  if (
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/cron") ||
+    pathname.startsWith("/auth/")
+  ) {
     return supabaseResponse;
   }
 
