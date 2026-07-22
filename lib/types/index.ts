@@ -205,6 +205,18 @@ export interface AgentAlert {
   created_at: string;
 }
 
+// ─── Notes ────────────────────────────────────────────────────────────────────
+
+export interface Note {
+  id:         string;
+  user_id:    string;
+  symbol:     string | null;   // set = attached to a ticker; null = general notepad
+  body:       string;
+  source:     string;          // where it was created: general | portfolio | trade_log | …
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Scanner API response ─────────────────────────────────────────────────────
 
 export interface ScannerResponse {
