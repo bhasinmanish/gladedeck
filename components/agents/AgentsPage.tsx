@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Bot, Plus, Bell, Trash2, Play, Pause, Clock, Loader2, Inbox, CheckCheck, Sparkles, Check, Wallet,
+  Bot, Plus, Bell, Trash2, Play, Pause, Clock, Loader2, Inbox, CheckCheck, Sparkles, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentChatDialog } from "./AgentChatDialog";
-import { PortfolioPanel } from "./PortfolioPanel";
 import { AGENT_CATALOG, universeLabel, type CatalogAgent } from "@/lib/agent-catalog";
 import type { Agent, AgentAlert } from "@/lib/types";
 
@@ -132,7 +131,7 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <Tabs defaultValue="portfolio" className="flex flex-col h-full">
+      <Tabs defaultValue="agents" className="flex flex-col h-full">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-3 border-b border-border shrink-0">
@@ -141,9 +140,6 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
             <h1 className="text-xl font-bold">Agents</h1>
           </div>
           <TabsList className="h-8 shrink-0">
-            <TabsTrigger value="portfolio" className="text-xs gap-1.5">
-              <Wallet className="h-3.5 w-3.5" /> Portfolio
-            </TabsTrigger>
             <TabsTrigger value="agents" className="text-xs gap-1.5">
               <Bot className="h-3.5 w-3.5" /> My Agents
             </TabsTrigger>
@@ -160,11 +156,6 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
             </TabsTrigger>
           </TabsList>
         </div>
-
-        {/* ── Portfolio ─────────────────────────────────────────────────────── */}
-        <TabsContent value="portfolio" className="flex-1 min-h-0 overflow-auto mt-0 p-4 md:p-6">
-          <PortfolioPanel />
-        </TabsContent>
 
         {/* ── My Agents ─────────────────────────────────────────────────────── */}
         <TabsContent value="agents" className="flex-1 min-h-0 overflow-auto mt-0 p-4 md:p-6">
