@@ -19,27 +19,38 @@ export function useSymbolNotes() {
       .catch(() => {});
   }, []);
 
-  const save = useCallback(async (symbol: string, body: string, source = "symbol") => {
-    const res = await fetch("/api/notes", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ symbol, body, source }),
-    });
-    if (res.ok) {
+  // Returns true on success, false on failure — so callers can surface errors.
+  const save = useCallback(async (symbol: string, body: string, source = "symbol"): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/notes", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ symbol, body, source }),
+      });
+      if (!res.ok) return false;
       const note: Note = await res.json();
       setNotes(prev => ({ ...prev, [symbol.toUpperCase()]: note }));
+      return true;
+    } catch {
+      return false;
     }
   }, []);
 
-  const remove = useCallback(async (symbol: string) => {
+  const remove = useCallback(async (symbol: string): Promise<boolean> => {
     const note = notes[symbol.toUpperCase()];
-    if (!note) return;
-    await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
-    setNotes(prev => {
-      const next = { ...prev };
-      delete next[symbol.toUpperCase()];
-      return next;
-    });
+    if (!note) return true;
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+      if (!res.ok) return false;
+      setNotes(prev => {
+        const next = { ...prev };
+        delete next[symbol.toUpperCase()];
+        return next;
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }, [notes]);
 
   return { notes, save, remove };

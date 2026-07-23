@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { NotebookPen, Plus, Trash2, Loader2, StickyNote, Hash } from "lucide-react";
+import { NotebookPen, Plus, Trash2, Loader2, StickyNote, Hash, AlertCircle } from "lucide-react";
 import { useSymbolNotes } from "./useSymbolNotes";
 import { SymbolNoteDialog } from "./SymbolNoteDialog";
 import type { Note } from "@/lib/types";
@@ -50,6 +50,7 @@ export function NotesPage() {
   const [general, setGeneral] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editSym, setEditSym] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   const { notes: symbolMap, save, remove } = useSymbolNotes();
   const symbolNotes = Object.values(symbolMap).sort(
@@ -64,14 +65,22 @@ export function NotesPage() {
   }, []);
 
   async function addGeneral() {
-    const res = await fetch("/api/notes", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ body: "" }),
-    });
-    if (res.ok) {
+    setError(null);
+    try {
+      const res = await fetch("/api/notes", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ body: "" }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setError(b.error ?? "Couldn’t create the note. The notes table may not be set up yet.");
+        return;
+      }
       const created: Note = await res.json();
       setGeneral(g => [created, ...g]);
+    } catch {
+      setError("Couldn’t reach the server.");
     }
   }
 
@@ -123,6 +132,12 @@ export function NotesPage() {
                 <Plus className="h-4 w-4" /> New note
               </Button>
             </div>
+
+            {error && (
+              <p className="flex items-start gap-1.5 text-xs text-destructive mb-3">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
+              </p>
+            )}
 
             {loading ? (
               <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -189,8 +204,8 @@ export function NotesPage() {
         symbol={editSym}
         initial={editSym ? symbolMap[editSym]?.body ?? "" : ""}
         onClose={() => setEditSym(null)}
-        onSave={(sym, b) => { save(sym, b); setEditSym(null); }}
-        onDelete={(sym)  => { remove(sym); setEditSym(null); }}
+        onSave={(sym, b) => save(sym, b)}
+        onDelete={(sym)  => remove(sym)}
       />
     </div>
   );

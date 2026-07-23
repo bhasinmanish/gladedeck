@@ -249,8 +249,8 @@ export function PortfolioPanel() {
         symbol={editSym}
         initial={editSym ? notes[editSym]?.body ?? "" : ""}
         onClose={() => setEditSym(null)}
-        onSave={(sym, b)   => { save(sym, b, "portfolio"); setEditSym(null); }}
-        onDelete={(sym)    => { remove(sym); setEditSym(null); }}
+        onSave={(sym, b) => save(sym, b, "portfolio")}
+        onDelete={(sym)  => remove(sym)}
       />
     </div>
   );

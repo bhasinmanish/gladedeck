@@ -522,8 +522,8 @@ export function TradeTable({ trades: initial, strategies }: Props) {
         symbol={editSym}
         initial={editSym ? notes[editSym]?.body ?? "" : ""}
         onClose={() => setEditSym(null)}
-        onSave={(sym, b) => { save(sym, b, "trade_log"); setEditSym(null); }}
-        onDelete={(sym)  => { remove(sym); setEditSym(null); }}
+        onSave={(sym, b) => save(sym, b, "trade_log")}
+        onDelete={(sym)  => remove(sym)}
       />
 
       {/* Clear history confirmation */}
