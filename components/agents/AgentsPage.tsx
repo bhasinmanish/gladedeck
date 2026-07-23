@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentChatDialog } from "./AgentChatDialog";
+import { AgentDetailDialog } from "./AgentDetailDialog";
 import { AGENT_CATALOG, universeLabel, type CatalogAgent } from "@/lib/agent-catalog";
 import type { Agent, AgentAlert } from "@/lib/types";
 
@@ -47,6 +48,7 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
   const [chatOpen, setChatOpen] = useState(false);
   const [busyId, setBusyId]   = useState<string | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [detailAgent, setDetailAgent] = useState<Agent | null>(null);
 
   const unread = alerts.filter(a => !a.is_read).length;
   const installedNames = new Set(agents.map(a => a.name));
@@ -102,6 +104,7 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
       if (res.ok) {
         setAgents(prev => prev.filter(a => a.id !== id));
         setAlerts(prev => prev.filter(a => a.agent_id !== id));
+        setDetailAgent(prev => (prev?.id === id ? null : prev));
       }
     } finally { setBusyId(null); }
   }
@@ -189,7 +192,11 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
               {agents.map(agent => {
                 const triggers = (agent.spec?.triggers as string[] | undefined) ?? [];
                 return (
-                  <div key={agent.id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                  <div
+                    key={agent.id}
+                    onClick={() => setDetailAgent(agent)}
+                    className="rounded-lg border border-border bg-card p-4 space-y-3 cursor-pointer hover:border-primary/30 transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -214,7 +221,7 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7"
                           title={agent.status === "active" ? "Pause" : "Resume"}
-                          onClick={() => toggleStatus(agent)}
+                          onClick={e => { e.stopPropagation(); toggleStatus(agent); }}
                           disabled={busyId === agent.id}
                         >
                           {busyId === agent.id
@@ -227,7 +234,7 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
                           variant="ghost" size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
                           title="Delete"
-                          onClick={() => deleteAgent(agent.id)}
+                          onClick={e => { e.stopPropagation(); deleteAgent(agent.id); }}
                           disabled={busyId === agent.id}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -402,6 +409,16 @@ export function AgentsPage({ initialAgents, initialAlerts }: Props) {
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         onCreated={agent => setAgents(prev => [agent, ...prev])}
+      />
+
+      <AgentDetailDialog
+        agent={detailAgent}
+        onClose={() => setDetailAgent(null)}
+        onSaved={updated => {
+          setAgents(prev => prev.map(a => a.id === updated.id ? updated : a));
+          setDetailAgent(updated);
+        }}
+        onDelete={id => deleteAgent(id)}
       />
     </div>
   );
