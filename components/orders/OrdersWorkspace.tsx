@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RefreshCw, Search, Loader2, Link2, ChevronUp, ChevronDown, ChevronsUpDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSymbolNotes } from "@/components/notes/useSymbolNotes";
+import { NoteStar } from "@/components/notes/NoteStar";
+import { SymbolNoteDialog } from "@/components/notes/SymbolNoteDialog";
 
 interface OrderView {
   orderId:        string;
@@ -70,6 +73,9 @@ export function OrdersWorkspace() {
   const [statusFilter, setStatusFilter] = useState<"all" | Category>("all");
   const [query, setQuery]               = useState("");
   const [sort, setSort]                 = useState<{ key: SortKey; dir: SortDir }>({ key: "date", dir: "desc" });
+  const [editSym, setEditSym]           = useState<string | null>(null);
+
+  const { notes, save, remove } = useSymbolNotes();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -246,9 +252,12 @@ export function OrdersWorkspace() {
                   return (
                     <TableRow key={o.orderId} className="hover:bg-muted/20">
                       <TableCell>
-                        <Link href={`/stocks/${o.symbol}`} className="font-bold text-primary hover:underline">
-                          {o.symbol}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/stocks/${o.symbol}`} className="font-bold text-primary hover:underline">
+                            {o.symbol}
+                          </Link>
+                          <NoteStar body={notes[o.symbol]?.body} onClick={() => setEditSym(o.symbol)} />
+                        </div>
                       </TableCell>
                       <TableCell>
                         <span className={cn("text-xs font-medium", isBuy ? "text-profit" : "text-loss")}>
@@ -286,6 +295,14 @@ export function OrdersWorkspace() {
           </Table>
         </div>
       </div>
+
+      <SymbolNoteDialog
+        symbol={editSym}
+        initial={editSym ? notes[editSym]?.body ?? "" : ""}
+        onClose={() => setEditSym(null)}
+        onSave={(sym, b) => save(sym, b, "orders")}
+        onDelete={(sym)  => remove(sym)}
+      />
     </div>
   );
 }
