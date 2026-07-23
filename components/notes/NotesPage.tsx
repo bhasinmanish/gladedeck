@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,9 +9,18 @@ import { useSymbolNotes } from "./useSymbolNotes";
 import { SymbolNoteDialog } from "./SymbolNoteDialog";
 import type { Note } from "@/lib/types";
 
-const SOURCE_LABELS: Record<string, string> = {
-  portfolio: "Portfolio", trade_log: "Trade Log", symbol: "Symbol", general: "General",
-};
+// Columns for the By-Symbol board, in display order. Anything that isn't one
+// of the named sources lands in "Other".
+const COLUMNS: { key: string; label: string }[] = [
+  { key: "portfolio", label: "Portfolio" },
+  { key: "trade_log", label: "Trade Log" },
+  { key: "orders",    label: "Orders" },
+  { key: "other",     label: "Other" },
+];
+
+function columnFor(source: string): string {
+  return ["portfolio", "trade_log", "orders"].includes(source) ? source : "other";
+}
 
 // A single free-form note that autosaves when you click away.
 function GeneralNoteCard({
@@ -157,46 +165,54 @@ export function NotesPage() {
           </div>
         </TabsContent>
 
-        {/* By Symbol — consolidates every ticker note from across the app */}
+        {/* By Symbol — a column per area; click a ticker to see its note */}
         <TabsContent value="symbols" className="flex-1 min-h-0 overflow-auto mt-0 p-4 md:p-6">
-          <div className="max-w-2xl mx-auto">
-            <p className="text-sm text-muted-foreground mb-4">
-              Every note attached to a ticker — created here, in Portfolio, or in the Trade Log — in one place.
-            </p>
-            {symbolNotes.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <StickyNote className="h-8 w-8 mx-auto opacity-30 mb-2" />
-                <p className="text-sm font-medium text-foreground">No symbol notes yet</p>
-                <p className="text-xs mt-1">
-                  Tap the note icon next to any ticker in Portfolio or the Trade Log to add one.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {symbolNotes.map(n => (
-                  <div key={n.id} className="rounded-lg border border-border bg-card p-3 flex items-start justify-between gap-3">
-                    <button className="text-left min-w-0 flex-1" onClick={() => n.symbol && setEditSym(n.symbol)}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-primary text-sm font-mono">{n.symbol}</span>
-                        {n.source && n.source !== "symbol" && (
-                          <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {SOURCE_LABELS[n.source] ?? n.source}
-                          </span>
-                        )}
+          <p className="text-sm text-muted-foreground mb-4">
+            Ticker notes grouped by where you made them. Tap a symbol to read or edit its note.
+          </p>
+          {symbolNotes.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <StickyNote className="h-8 w-8 mx-auto opacity-30 mb-2" />
+              <p className="text-sm font-medium text-foreground">No symbol notes yet</p>
+              <p className="text-xs mt-1">
+                Tap the note icon next to any ticker in Portfolio, the Trade Log, or Orders to add one.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {COLUMNS.map(col => {
+                const items = symbolNotes.filter(n => columnFor(n.source) === col.key);
+                // Skip the catch-all "Other" column when it's empty.
+                if (col.key === "other" && items.length === 0) return null;
+                return (
+                  <div key={col.key} className="rounded-lg border border-border bg-card overflow-hidden">
+                    <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center justify-between">
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {col.label}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{items.length}</span>
+                    </div>
+                    {items.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/70 px-3 py-4 text-center">No notes</p>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {items.map(n => (
+                          <button
+                            key={n.id}
+                            onClick={() => n.symbol && setEditSym(n.symbol)}
+                            className="w-full text-left px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                          >
+                            <span className="font-bold text-primary text-sm font-mono">{n.symbol}</span>
+                            <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{n.body}</p>
+                          </button>
+                        ))}
                       </div>
-                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">{n.body}</p>
-                    </button>
-                    <Link
-                      href={`/stocks/${n.symbol}`}
-                      className="text-[10px] text-primary hover:underline shrink-0 mt-0.5"
-                    >
-                      View
-                    </Link>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -204,7 +220,7 @@ export function NotesPage() {
         symbol={editSym}
         initial={editSym ? symbolMap[editSym]?.body ?? "" : ""}
         onClose={() => setEditSym(null)}
-        onSave={(sym, b) => save(sym, b)}
+        onSave={(sym, b) => save(sym, b, symbolMap[sym]?.source ?? "symbol")}
         onDelete={(sym)  => remove(sym)}
       />
     </div>
