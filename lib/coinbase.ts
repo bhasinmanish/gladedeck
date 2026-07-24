@@ -1,41 +1,47 @@
 // Coinbase Advanced Trade API — JWT auth with CDP API keys
 // Docs: https://docs.cdp.coinbase.com/advanced-trade/docs/rest-api-auth
 
-import { createPrivateKey, createSign, randomBytes } from "crypto";
+import { createPrivateKey, sign, randomBytes } from "crypto";
 
 const API_BASE = "https://api.coinbase.com/api/v3/brokerage";
 
-// Coinbase provides the private key as raw base64 (PKCS#8 DER, no PEM headers).
-// Wrap it so Node.js crypto can load it.
+// Coinbase provides Ed25519 private keys in NaCl format:
+// 64 bytes = first 32 bytes (seed) + last 32 bytes (public key).
+// Node.js needs PKCS#8 DER built from just the 32-byte seed.
+function ed25519Pkcs8FromSeed(seed: Buffer): Buffer {
+  //  30 2E           SEQUENCE (46 bytes)
+  //    02 01 00      INTEGER 0  (version)
+  //    30 05         SEQUENCE
+  //      06 03 2B 65 70  OID 1.3.101.112 (id-EdDSA)
+  //    04 22         OCTET STRING (34 bytes)
+  //      04 20       OCTET STRING (32 bytes)
+  //        <seed>
+  const OID     = Buffer.from([0x06, 0x03, 0x2b, 0x65, 0x70]);
+  const algoId  = Buffer.concat([Buffer.from([0x30, 0x05]), OID]);
+  const privOct = Buffer.concat([Buffer.from([0x04, 0x20]), seed]);
+  const wrapped = Buffer.concat([Buffer.from([0x04, 0x22]), privOct]);
+  const version = Buffer.from([0x02, 0x01, 0x00]);
+  const inner   = Buffer.concat([version, algoId, wrapped]);
+  return Buffer.concat([Buffer.from([0x30, inner.length]), inner]);
+}
+
 function normalizePem(raw: string): string {
   const cleaned = raw.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
   if (cleaned.includes("-----BEGIN")) return cleaned;
-  const b64     = cleaned.replace(/\s+/g, "");
+
+  const b64   = cleaned.replace(/\s+/g, "");
+  const bytes = Buffer.from(b64, "base64");
+
+  if (bytes.length === 64) {
+    // NaCl Ed25519 key — extract the 32-byte seed
+    const der     = ed25519Pkcs8FromSeed(bytes.slice(0, 32));
+    const encoded = der.toString("base64").match(/.{1,64}/g)!.join("\n");
+    return `-----BEGIN PRIVATE KEY-----\n${encoded}\n-----END PRIVATE KEY-----`;
+  }
+
+  // Fallback: assume content is already raw PKCS#8 DER
   const chunked = (b64.match(/.{1,64}/g) ?? [b64]).join("\n");
   return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----`;
-}
-
-// Coinbase uses ES256 (ECDSA P-256). The DER signature from Node.js must be
-// converted to the raw r||s format that JWTs expect.
-function derToRawES256(der: Buffer): Buffer {
-  let pos = 2; // skip outer SEQUENCE tag + length (assume single-byte length)
-  if (der[1] & 0x80) pos += der[1] & 0x7f; // long-form length
-
-  // R
-  pos++;                        // INTEGER tag
-  const rLen = der[pos++];
-  const r    = der.slice(pos, pos + rLen);
-  pos += rLen;
-
-  // S
-  pos++;                        // INTEGER tag
-  const sLen = der[pos++];
-  const s    = der.slice(pos, pos + sLen);
-
-  // Pad each to 32 bytes (P-256 coordinate size) and concatenate
-  const pad = (buf: Buffer) =>
-    Buffer.concat([Buffer.alloc(Math.max(0, 32 - buf.length)), buf.slice(-32)]);
-  return Buffer.concat([pad(r), pad(s)]);
 }
 
 export function buildCoinbaseJWT(
@@ -48,7 +54,7 @@ export function buildCoinbaseJWT(
   const now   = Math.floor(Date.now() / 1000);
   const nonce = randomBytes(16).toString("hex");
 
-  const header  = { alg: "ES256", kid: keyName, nonce };
+  const header  = { alg: "EdDSA", kid: keyName, nonce };
   const payload = {
     sub: keyName,
     iss: "cdp",
@@ -63,12 +69,8 @@ export function buildCoinbaseJWT(
   const sigInput   = `${headerB64}.${payloadB64}`;
 
   const privateKey = createPrivateKey(pem);
-  const signer     = createSign("SHA256");
-  signer.update(sigInput);
-  const derSig = signer.sign(privateKey);
-  const rawSig = derToRawES256(derSig);
-
-  return `${sigInput}.${rawSig.toString("base64url")}`;
+  const sig        = sign(null, Buffer.from(sigInput), privateKey);
+  return `${sigInput}.${sig.toString("base64url")}`;
 }
 
 function authHeaders(keyName: string, privateKey: string, method: string, path: string) {
@@ -78,7 +80,6 @@ function authHeaders(keyName: string, privateKey: string, method: string, path: 
   };
 }
 
-// Lightweight auth check — just verifies the credentials work
 export async function testCoinbaseCredentials(
   keyName: string,
   privateKeyPem: string,
@@ -90,7 +91,7 @@ export async function testCoinbaseCredentials(
     });
     if (res.ok) return { ok: true };
     const body = await res.text().catch(() => "");
-    return { ok: false, error: `Coinbase returned ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}` };
+    return { ok: false, error: `Coinbase returned ${res.status}${body ? `: ${body.slice(0, 200)}` : ""}` };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
   }
@@ -123,7 +124,6 @@ export async function getCoinbaseAccounts(
   );
   if (nonZero.length === 0) return [];
 
-  // Batch-fetch mid prices for all held assets
   const productIds = nonZero.map(a => `${a.currency}-USD`).filter(id => id !== "USD-USD");
   const priceMap: Record<string, number> = {};
 
