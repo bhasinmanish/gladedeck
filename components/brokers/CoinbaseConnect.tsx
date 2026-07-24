@@ -127,7 +127,8 @@ export function CoinbaseConnect() {
         <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3">
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Go to <strong>coinbase.com → Settings → API</strong>, create a key with{" "}
-            <strong>View (read-only)</strong> permission, then paste both values below.
+            <strong>View (read-only)</strong> permission. Copy both values shown after creation —
+            the private key is only shown once.
           </p>
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-muted-foreground">Key Name</label>
@@ -140,13 +141,16 @@ export function CoinbaseConnect() {
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-muted-foreground">Private Key</label>
-            <Textarea
+          <Textarea
               value={privateKey}
               onChange={e => setPrivateKey(e.target.value)}
-              placeholder={"-----BEGIN EC PRIVATE KEY-----\n…\n-----END EC PRIVATE KEY-----"}
-              rows={4}
+              placeholder={"-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----"}
+              rows={5}
               className="text-[11px] font-mono resize-none"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Include the full -----BEGIN / END----- header and footer lines.
+            </p>
           </div>
           <Button
             size="sm"

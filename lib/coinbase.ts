@@ -12,8 +12,12 @@ export function buildCoinbaseJWT(
   method: string,
   path: string,
 ): string {
-  // Coinbase sometimes delivers the PEM with literal \n instead of real newlines
-  const pem   = privateKeyPem.replace(/\\n/g, "\n");
+  // Normalize PEM: handle literal \n, CRLF, and missing newlines around the base64 body
+  const pem = privateKeyPem
+    .replace(/\\n/g, "\n")           // literal \n → real newline
+    .replace(/\r\n/g, "\n")          // CRLF → LF
+    .replace(/(-----)\s*(BEGIN|END)/g, "$1\n$2")  // ensure newline before BEGIN/END
+    .trim();
   const now   = Math.floor(Date.now() / 1000);
   const nonce = randomBytes(16).toString("hex");
 
@@ -49,6 +53,24 @@ export interface CoinbaseAsset {
   currency:      string;
   balance:       number;   // native crypto amount
   nativeBalance: number;   // USD equivalent
+}
+
+// Lightweight auth check — just verifies the credentials work, returns true/false
+export async function testCoinbaseCredentials(
+  keyName: string,
+  privateKeyPem: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const path = "/api/v3/brokerage/accounts?limit=1";
+    const res  = await fetch(`https://api.coinbase.com${path}`, {
+      headers: authHeaders(keyName, privateKeyPem, "GET", path),
+    });
+    if (res.ok) return { ok: true };
+    const body = await res.text().catch(() => "");
+    return { ok: false, error: `Coinbase returned ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
 }
 
 export async function getCoinbaseAccounts(
