@@ -144,13 +144,10 @@ export function CoinbaseConnect() {
           <Textarea
               value={privateKey}
               onChange={e => setPrivateKey(e.target.value)}
-              placeholder={"-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----"}
+              placeholder="Paste your private key here"
               rows={5}
               className="text-[11px] font-mono resize-none"
             />
-            <p className="text-[10px] text-muted-foreground">
-              Include the full -----BEGIN / END----- header and footer lines.
-            </p>
           </div>
           <Button
             size="sm"

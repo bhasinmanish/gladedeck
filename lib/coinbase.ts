@@ -5,6 +5,16 @@ import { createPrivateKey, sign, randomBytes } from "crypto";
 
 const API_BASE = "https://api.coinbase.com/api/v3/brokerage";
 
+// Accept raw base64 or full PEM — wraps bare base64 in PKCS#8 headers automatically
+function normalizePem(raw: string): string {
+  const cleaned = raw.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
+  if (cleaned.includes("-----BEGIN")) return cleaned;
+  // Strip any whitespace from bare base64 and chunk into 64-char lines
+  const b64     = cleaned.replace(/\s+/g, "");
+  const chunked = (b64.match(/.{1,64}/g) ?? [b64]).join("\n");
+  return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----`;
+}
+
 // Build a signed JWT for one request (valid 120 s)
 export function buildCoinbaseJWT(
   keyName: string,
@@ -12,12 +22,7 @@ export function buildCoinbaseJWT(
   method: string,
   path: string,
 ): string {
-  // Normalize PEM: handle literal \n, CRLF, and missing newlines around the base64 body
-  const pem = privateKeyPem
-    .replace(/\\n/g, "\n")           // literal \n → real newline
-    .replace(/\r\n/g, "\n")          // CRLF → LF
-    .replace(/(-----)\s*(BEGIN|END)/g, "$1\n$2")  // ensure newline before BEGIN/END
-    .trim();
+  const pem = normalizePem(privateKeyPem);
   const now   = Math.floor(Date.now() / 1000);
   const nonce = randomBytes(16).toString("hex");
 
