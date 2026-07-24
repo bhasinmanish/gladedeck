@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Loader2, ArrowUpRight, ArrowDownRight, Link2, RefreshCw, TrendingUp, StickyNote } from "lucide-react";
+import { Loader2, ArrowUpRight, ArrowDownRight, Link2, RefreshCw, TrendingUp, StickyNote, Bitcoin } from "lucide-react";
 import { useSymbolNotes } from "@/components/notes/useSymbolNotes";
 import { NoteStar } from "@/components/notes/NoteStar";
 import { SymbolNoteDialog } from "@/components/notes/SymbolNoteDialog";
@@ -26,6 +26,20 @@ interface Data {
   dayChange:  number;
   positions:  Position[];
   returns:    Record<Timeframe, number | null>;
+}
+
+interface CryptoAsset {
+  id:            string;
+  name:          string;
+  currency:      string;
+  balance:       number;
+  nativeBalance: number;
+}
+
+interface CryptoData {
+  connected: boolean;
+  accounts:  CryptoAsset[];
+  totalUsd:  number;
 }
 
 const TIMEFRAMES: Timeframe[] = ["1D", "1W", "1M", "YTD", "ALL"];
@@ -77,12 +91,13 @@ function PortfolioNotes({
 }
 
 export function PortfolioPanel() {
-  const [data, setData]     = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
-  const [tf, setTf]         = useState<Timeframe>("1D");
-  const [view, setView]     = useState<"holdings" | "notes">("holdings");
-  const [editSym, setEditSym] = useState<string | null>(null);
+  const [data, setData]         = useState<Data | null>(null);
+  const [crypto, setCrypto]     = useState<CryptoData | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [tf, setTf]             = useState<Timeframe>("1D");
+  const [view, setView]         = useState<"holdings" | "notes">("holdings");
+  const [editSym, setEditSym]   = useState<string | null>(null);
 
   const { notes, save, remove } = useSymbolNotes();
 
@@ -90,10 +105,18 @@ export function PortfolioPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res  = await fetch("/api/brokers/schwab/positions");
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to load portfolio");
-      setData(json);
+      const [schwabRes, coinbaseRes] = await Promise.all([
+        fetch("/api/brokers/schwab/positions"),
+        fetch("/api/brokers/coinbase/balances"),
+      ]);
+      const schwabJson = await schwabRes.json();
+      if (!schwabRes.ok) throw new Error(schwabJson.error ?? "Failed to load portfolio");
+      setData(schwabJson);
+
+      if (coinbaseRes.ok) {
+        const coinbaseJson = await coinbaseRes.json();
+        setCrypto(coinbaseJson);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load portfolio");
     } finally {
@@ -238,6 +261,32 @@ export function PortfolioPanel() {
           notes={notes}
           onEdit={setEditSym}
         />
+      )}
+
+      {/* Crypto section — only when Coinbase is connected and has non-zero balances */}
+      {crypto?.connected && crypto.accounts.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Bitcoin className="h-3.5 w-3.5 text-[#F7931A]" />
+            <p className="text-xs font-semibold">Crypto · Coinbase</p>
+            <span className="ml-auto text-xs font-mono text-muted-foreground">
+              {money(crypto.totalUsd)}
+            </span>
+          </div>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            {crypto.accounts.map(a => (
+              <div key={a.id} className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-sm font-mono text-primary">{a.currency}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {a.balance.toLocaleString("en-US", { maximumSignificantDigits: 6 })} {a.currency}
+                  </span>
+                </div>
+                <span className="font-mono text-sm">{money(a.nativeBalance)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
