@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     if (!check.ok) {
       console.error("[coinbase/save-key] auth test failed:", check.error);
       return NextResponse.json(
-        { error: "Couldn't authenticate with Coinbase. Make sure you copied the full Key Name (organizations/…/apiKeys/…) and the complete Private Key including the header/footer lines." },
+        { error: `Coinbase auth failed: ${check.error ?? "unknown error"}` },
         { status: 400 },
       );
     }
