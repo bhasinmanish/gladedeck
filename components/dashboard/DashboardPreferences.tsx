@@ -10,6 +10,7 @@ import {
   CalendarCheck, Lightbulb, Eye, Send, Check, Timer, Plug, CreditCard,
 } from "lucide-react";
 import { SchwabConnect } from "@/components/brokers/SchwabConnect";
+import { CoinbaseConnect } from "@/components/brokers/CoinbaseConnect";
 import { cn } from "@/lib/utils";
 import {
   type WidgetKey, type DashboardPrefs,
@@ -367,9 +368,14 @@ export function DashboardPreferences({ open, onClose }: Props) {
                 <Plug className="h-4 w-4 text-muted-foreground" /> Connected Accounts
               </p>
               <p className="text-xs text-muted-foreground mb-3">
-                Link your broker to auto-import trades into your Trade Log.
+                Link your broker to auto-import trades and view holdings.
               </p>
-              <SchwabConnect />
+              <div className="space-y-4">
+                <SchwabConnect />
+                <div className="border-t border-border pt-4">
+                  <CoinbaseConnect />
+                </div>
+              </div>
             </div>
 
             {/* Billing */}
