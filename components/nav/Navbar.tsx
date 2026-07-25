@@ -18,18 +18,19 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard",    href: "/dashboard"    },
-  { label: "Portfolio",    href: "/portfolio"    },
-  { label: "Scanner",      href: "/scanner"      },
-  { label: "Charts",       href: "/charts"       },
-  { label: "Alerts",       href: "/alerts"       },
-  { label: "Daily Review", href: "/daily-review" },
-  { label: "Trade Log",    href: "/trade-log"    },
-  { label: "Orders",       href: "/orders"       },
-  { label: "Strategies",   href: "/strategies"   },
-  { label: "Agents",       href: "/agents"       },
-  { label: "Notes",        href: "/notes"        },
-  { label: "Reports",      href: "/reports"      },
+  { label: "Dashboard",     href: "/dashboard"     },
+  { label: "Morning Picks", href: "/morning-picks" },
+  { label: "Portfolio",     href: "/portfolio"     },
+  { label: "Scanner",       href: "/scanner"       },
+  { label: "Charts",        href: "/charts"        },
+  { label: "Alerts",        href: "/alerts"        },
+  { label: "Daily Review",  href: "/daily-review"  },
+  { label: "Trade Log",     href: "/trade-log"     },
+  { label: "Orders",        href: "/orders"        },
+  { label: "Strategies",    href: "/strategies"    },
+  { label: "Agents",        href: "/agents"        },
+  { label: "Notes",         href: "/notes"         },
+  { label: "Reports",       href: "/reports"       },
 ];
 
 export function Navbar({ user }: { user: User }) {

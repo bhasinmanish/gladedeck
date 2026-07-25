@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
 from alerts import dispatch_alert, AlertRequest
+from snapshot import get_snapshot, SnapshotRequest
 
 import logging
 import os
@@ -57,6 +58,12 @@ async def scan(request: ScanRequest):
 async def alert(request: AlertRequest):
     """Dispatch an alert via in-app, push, and/or SMS."""
     return await dispatch_alert(request)
+
+
+@app.post("/snapshot", dependencies=[Depends(verify_secret)])
+async def snapshot(request: SnapshotRequest):
+    """Return gap %, volume ratio, SMA distances, and sector for a list of tickers."""
+    return get_snapshot(request.tickers)
 
 
 if __name__ == "__main__":
