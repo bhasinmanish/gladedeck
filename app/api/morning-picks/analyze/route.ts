@@ -22,11 +22,15 @@ export async function POST() {
 
   // Build a structured summary of all picks + their market data
   const summary = picks.map(p => {
-    const md = p.market_data as Record<string, Record<string, number | string | null>>;
+    const md = p.market_data as Record<string, Record<string, unknown>>;
     const formatTicker = (ticker: string, side: "bullish" | "bearish") => {
       const d = md?.[ticker];
       if (!d || d.error) return `${ticker} (no data)`;
-      return `${ticker} [${side}]: gap=${d.gap_pct}% vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}`;
+      const newsItems = Array.isArray(d.news) ? (d.news as {title: string; category: string}[]) : [];
+      const newsStr = newsItems.length > 0
+        ? ` | catalysts: ${newsItems.map(n => `"${n.title}" [${n.category}]`).join("; ")}`
+        : "";
+      return `${ticker} [${side}]: gap=${d.gap_pct}% vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
     };
     const bullLines = (p.bullish_tickers as string[]).map(t => formatTicker(t, "bullish"));
     const bearLines = (p.bearish_tickers as string[]).map(t => formatTicker(t, "bearish"));
@@ -38,18 +42,18 @@ export async function POST() {
     max_tokens: 1200,
     messages: [{
       role: "user",
-      content: `You are analyzing a trader's morning stock picks to find consistent technical patterns.
+      content: `You are analyzing a trader's morning stock picks to find consistent patterns across both technical data and news catalysts.
 
-Here are their picks over ${picks.length} trading days, with market data at time of submission:
-(gap_pct = gap vs previous close, vol_ratio = today volume / 20-day avg, sma*_dist = % above/below moving average)
+Here are their picks over ${picks.length} trading days, with market data captured at the time of submission:
+(gap_pct = gap vs previous close, vol_ratio = today volume / 20-day avg, sma*_dist = % above/below moving average, catalysts = same-day news headlines)
 
 ${summary}
 
 Analyze this data and answer:
-1. What do the BULLISH picks consistently have in common? (gap direction, volume, SMA positioning, sectors)
+1. What do the BULLISH picks consistently have in common? (gap direction, volume, SMA positioning, sectors, news types)
 2. What do the BEARISH picks consistently have in common?
-3. What are the clearest distinguishing criteria between their bullish vs bearish selections?
-4. Write a simple scoring formula (in plain English) that could be used to automatically identify similar picks each morning.
+3. What are the clearest distinguishing criteria between their bullish vs bearish selections? Include any news catalyst patterns you notice (e.g. earnings beats, upgrades, M&A on bullish vs regulatory/downgrade on bearish).
+4. Write a simple scoring formula (in plain English) that could be used to automatically identify similar picks each morning — include both technical and catalyst signals.
 
 Be specific with numbers where patterns are clear. Keep the response concise and actionable.`,
     }],

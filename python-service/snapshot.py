@@ -1,12 +1,13 @@
 """
 Market data snapshot for a list of tickers.
 Called when a user submits their morning picks — captures gap %, volume ratio,
-SMA distances, and sector at the time of submission.
+SMA distances, sector, and today's news catalysts at the time of submission.
 """
 
 import logging
 import yfinance as yf
 from pydantic import BaseModel
+from news import fetch_news_for_symbols
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class SnapshotRequest(BaseModel):
     tickers: list[str]
 
 
-def get_snapshot(tickers: list[str]) -> dict:
+async def get_snapshot(tickers: list[str]) -> dict:
     result: dict = {}
 
     for raw in tickers[:MAX_TICKERS]:
@@ -75,5 +76,19 @@ def get_snapshot(tickers: list[str]) -> dict:
         except Exception as e:
             log.warning(f"[snapshot] {ticker} error: {e}")
             result[ticker] = {"error": str(e)}
+
+    # Fetch news catalysts (last 24 h) for all successfully processed tickers
+    valid_tickers = [t for t in result if "error" not in result[t]]
+    if valid_tickers:
+        try:
+            news_map = await fetch_news_for_symbols(valid_tickers, since_hours=24)
+            for ticker, headlines in news_map.items():
+                if headlines:
+                    result[ticker]["news"] = [
+                        {"title": h["title"], "category": h["category"]}
+                        for h in headlines[:4]
+                    ]
+        except Exception as e:
+            log.warning(f"[snapshot] news fetch failed: {e}")
 
     return result

@@ -10,6 +10,11 @@ import {
   Sparkles, RefreshCw, AlertCircle,
 } from "lucide-react";
 
+interface NewsItem {
+  title:    string;
+  category: string;
+}
+
 interface MarketDatum {
   price?:       number;
   gap_pct?:     number;
@@ -18,6 +23,7 @@ interface MarketDatum {
   sma50_dist?:  number | null;
   sma200_dist?: number | null;
   sector?:      string;
+  news?:        NewsItem[];
   error?:       string;
 }
 
@@ -54,20 +60,29 @@ function TickerCard({ ticker, data, side }: { ticker: string; data: MarketDatum;
       {data.error ? (
         <p className="text-[10px] text-muted-foreground">No data</p>
       ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-          <span className="text-muted-foreground">Gap</span>
-          <span className={cn("font-mono font-medium", (data.gap_pct ?? 0) >= 0 ? "text-profit" : "text-loss")}>
-            {pct(data.gap_pct)}
-          </span>
-          <span className="text-muted-foreground">Vol ratio</span>
-          <span className="font-mono">{data.vol_ratio != null ? `${data.vol_ratio.toFixed(1)}x` : "—"}</span>
-          <span className="text-muted-foreground">vs SMA20</span>
-          <span className="font-mono">{pct(data.sma20_dist)}</span>
-          <span className="text-muted-foreground">vs SMA50</span>
-          <span className="font-mono">{pct(data.sma50_dist)}</span>
-          <span className="text-muted-foreground">vs SMA200</span>
-          <span className="font-mono">{pct(data.sma200_dist)}</span>
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+            <span className="text-muted-foreground">Gap</span>
+            <span className={cn("font-mono font-medium", (data.gap_pct ?? 0) >= 0 ? "text-profit" : "text-loss")}>
+              {pct(data.gap_pct)}
+            </span>
+            <span className="text-muted-foreground">Vol ratio</span>
+            <span className="font-mono">{data.vol_ratio != null ? `${data.vol_ratio.toFixed(1)}x` : "—"}</span>
+            <span className="text-muted-foreground">vs SMA20</span>
+            <span className="font-mono">{pct(data.sma20_dist)}</span>
+            <span className="text-muted-foreground">vs SMA50</span>
+            <span className="font-mono">{pct(data.sma50_dist)}</span>
+            <span className="text-muted-foreground">vs SMA200</span>
+            <span className="font-mono">{pct(data.sma200_dist)}</span>
+          </div>
+          {data.news && data.news.length > 0 && (
+            <div className="pt-1.5 border-t border-border/40 space-y-0.5">
+              {data.news.slice(0, 2).map((n, i) => (
+                <p key={i} className="text-[10px] text-muted-foreground leading-tight">{n.title}</p>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -62,8 +62,8 @@ async def alert(request: AlertRequest):
 
 @app.post("/snapshot", dependencies=[Depends(verify_secret)])
 async def snapshot(request: SnapshotRequest):
-    """Return gap %, volume ratio, SMA distances, and sector for a list of tickers."""
-    return get_snapshot(request.tickers)
+    """Return gap %, volume ratio, SMA distances, sector, and news for a list of tickers."""
+    return await get_snapshot(request.tickers)
 
 
 if __name__ == "__main__":
