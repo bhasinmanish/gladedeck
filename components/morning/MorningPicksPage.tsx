@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Loader2, TrendingUp, TrendingDown, ChevronDown, ChevronUp,
-  Sparkles, RefreshCw, AlertCircle, Star, Zap, Flame, FileText,
+  Sparkles, RefreshCw, AlertCircle, Star, Zap, Flame, FileText, Pencil,
 } from "lucide-react";
 
 interface NewsItem {
@@ -232,7 +232,7 @@ function PickInput({
   );
 }
 
-export function MorningPicksPage() {
+export function WatchlistPage() {
   const [picks,     setPicks]     = useState<Pick[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
@@ -250,6 +250,16 @@ export function MorningPicksPage() {
   const today = new Date().toISOString().split("T")[0];
   const todayPick = picks.find(p => p.date === today);
   const hasToday  = !!todayPick;
+
+  function loadForEditing(pick: Pick) {
+    setBullishRaw(pick.bullish_tickers.join("\n"));
+    setBearishRaw(pick.bearish_tickers.join("\n"));
+    setFavoritesRaw((pick.favorites_tickers ?? []).join("\n"));
+    setScalpsRaw((pick.scalp_tickers ?? []).join("\n"));
+    setExplosivesRaw((pick.explosive_tickers ?? []).join("\n"));
+    setNotesRaw(pick.notes ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,7 +337,7 @@ export function MorningPicksPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 py-6 px-4">
       <div>
-        <h1 className="text-xl font-bold">Morning Picks</h1>
+        <h1 className="text-xl font-bold">Watchlist</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Log your daily watchlist. After a few days, AI analyzes what your picks have in common.
         </p>
@@ -342,9 +352,18 @@ export function MorningPicksPage() {
             })}
           </p>
           {hasToday && (
-            <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">
-              Saved today
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">
+                Saved today
+              </Badge>
+              <Button
+                size="sm" variant="ghost"
+                onClick={() => loadForEditing(todayPick!)}
+                className="gap-1 text-xs h-6 px-2 text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-3 w-3" /> Edit
+              </Button>
+            </div>
           )}
         </div>
 
@@ -449,7 +468,7 @@ export function MorningPicksPage() {
         <div className="text-center py-10 text-muted-foreground">
           <TrendingUp className="h-8 w-8 mx-auto opacity-20 mb-3" />
           <p className="text-sm font-medium text-foreground">No picks yet</p>
-          <p className="text-xs mt-1">Paste your morning watchlist above and save it each day.</p>
+          <p className="text-xs mt-1">Paste your watchlist above and save it each day.</p>
         </div>
       )}
     </div>
