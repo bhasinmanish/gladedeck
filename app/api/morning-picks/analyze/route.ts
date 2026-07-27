@@ -35,9 +35,12 @@ export async function POST() {
         : "";
       return `${ticker} [${side}]: gap=${d.gap_pct}%${pmStr} vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
     };
-    const bullLines = (p.bullish_tickers as string[]).map(t => formatTicker(t, "bullish"));
-    const bearLines = (p.bearish_tickers as string[]).map(t => formatTicker(t, "bearish"));
-    return `\n=== ${p.date} ===\n${bullLines.join("\n")}\n${bearLines.join("\n")}`;
+    const bullLines  = (p.bullish_tickers    as string[]).map(t => formatTicker(t, "bullish"));
+    const bearLines  = (p.bearish_tickers    as string[]).map(t => formatTicker(t, "bearish"));
+    const favLines   = ((p.favorites_tickers  ?? []) as string[]).map(t => formatTicker(t, "favorite"));
+    const scalpLines = ((p.scalp_tickers      ?? []) as string[]).map(t => formatTicker(t, "scalp"));
+    const expLines   = ((p.explosive_tickers  ?? []) as string[]).map(t => formatTicker(t, "explosive"));
+    return `\n=== ${p.date} ===\n${[...bullLines, ...bearLines, ...favLines, ...scalpLines, ...expLines].join("\n")}`;
   }).join("\n");
 
   const msg = await anthropic.messages.create({
@@ -45,7 +48,13 @@ export async function POST() {
     max_tokens: 1200,
     messages: [{
       role: "user",
-      content: `You are analyzing a trader's morning stock picks to find consistent patterns across both technical data and news catalysts.
+      content: `You are analyzing a trader's morning stock picks to find consistent patterns across technical data and news catalysts.
+
+Pick categories:
+- bullish / bearish: directional bias for the day
+- favorite: highest-conviction picks regardless of direction
+- scalp: quick momentum trades (in and out fast)
+- explosive: high volatility / big-move potential
 
 Here are their picks over ${picks.length} trading days, with market data captured at the time of submission:
 (gap_pct = gap vs previous close, vol_ratio = today volume / 20-day avg, sma*_dist = % above/below moving average, catalysts = same-day news headlines)
@@ -55,8 +64,9 @@ ${summary}
 Analyze this data and answer:
 1. What do the BULLISH picks consistently have in common? (gap direction, volume, SMA positioning, sectors, news types)
 2. What do the BEARISH picks consistently have in common?
-3. What are the clearest distinguishing criteria between their bullish vs bearish selections? Include any news catalyst patterns you notice (e.g. earnings beats, upgrades, M&A on bullish vs regulatory/downgrade on bearish).
-4. Write a simple scoring formula (in plain English) that could be used to automatically identify similar picks each morning — include both technical and catalyst signals.
+3. What patterns define FAVORITES vs regular bullish/bearish picks? What makes something high-conviction?
+4. What technical setup appears most on SCALPS? What on EXPLOSIVES?
+5. Write a simple scoring formula (in plain English) that could automatically categorize stocks into these buckets each morning — include both technical and catalyst signals.
 
 Be specific with numbers where patterns are clear. Keep the response concise and actionable.`,
     }],
