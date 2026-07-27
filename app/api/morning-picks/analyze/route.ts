@@ -30,7 +30,10 @@ export async function POST() {
       const newsStr = newsItems.length > 0
         ? ` | catalysts: ${newsItems.map(n => `"${n.title}" [${n.category}]`).join("; ")}`
         : "";
-      return `${ticker} [${side}]: gap=${d.gap_pct}% vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
+      const pmStr = d.premarket_gap_pct != null
+        ? ` premarket_gap=${d.premarket_gap_pct}%`
+        : "";
+      return `${ticker} [${side}]: gap=${d.gap_pct}%${pmStr} vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
     };
     const bullLines = (p.bullish_tickers as string[]).map(t => formatTicker(t, "bullish"));
     const bearLines = (p.bearish_tickers as string[]).map(t => formatTicker(t, "bearish"));

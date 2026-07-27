@@ -16,15 +16,18 @@ interface NewsItem {
 }
 
 interface MarketDatum {
-  price?:       number;
-  gap_pct?:     number;
-  vol_ratio?:   number;
-  sma20_dist?:  number;
-  sma50_dist?:  number | null;
-  sma200_dist?: number | null;
-  sector?:      string;
-  news?:        NewsItem[];
-  error?:       string;
+  price?:            number;
+  gap_pct?:          number;
+  vol_ratio?:        number;
+  sma20_dist?:       number;
+  sma50_dist?:       number | null;
+  sma200_dist?:      number | null;
+  sector?:           string;
+  premarket_price?:  number;
+  premarket_gap_pct?: number;
+  premarket_volume?: number;
+  news?:             NewsItem[];
+  error?:            string;
 }
 
 interface Pick {
@@ -62,7 +65,15 @@ function TickerCard({ ticker, data, side }: { ticker: string; data: MarketDatum;
       ) : (
         <>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-            <span className="text-muted-foreground">Gap</span>
+            {data.premarket_gap_pct != null && (
+              <>
+                <span className="text-muted-foreground">PM gap</span>
+                <span className={cn("font-mono font-medium", data.premarket_gap_pct >= 0 ? "text-profit" : "text-loss")}>
+                  {pct(data.premarket_gap_pct)}
+                </span>
+              </>
+            )}
+            <span className="text-muted-foreground">{data.premarket_gap_pct != null ? "Open gap" : "Gap"}</span>
             <span className={cn("font-mono font-medium", (data.gap_pct ?? 0) >= 0 ? "text-profit" : "text-loss")}>
               {pct(data.gap_pct)}
             </span>

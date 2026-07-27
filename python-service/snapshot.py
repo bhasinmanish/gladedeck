@@ -1,10 +1,14 @@
 """
 Market data snapshot for a list of tickers.
 Called when a user submits their morning picks — captures gap %, volume ratio,
-SMA distances, sector, and today's news catalysts at the time of submission.
+SMA distances, sector, same-day news, and (if pre-market) the current
+pre-market price and gap at time of submission.
 """
 
 import logging
+from datetime import datetime, time as dtime
+from zoneinfo import ZoneInfo
+
 import yfinance as yf
 from pydantic import BaseModel
 from news import fetch_news_for_symbols
@@ -12,10 +16,42 @@ from news import fetch_news_for_symbols
 log = logging.getLogger(__name__)
 
 MAX_TICKERS = 40
+ET = ZoneInfo("America/New_York")
 
 
 class SnapshotRequest(BaseModel):
     tickers: list[str]
+
+
+def _get_premarket(t: yf.Ticker, prev_close: float) -> dict:
+    """Return pre-market price/gap/volume if called before 9:30 AM ET, else {}."""
+    try:
+        now_et = datetime.now(ET)
+        current_time = now_et.time()
+        if not (dtime(4, 0) <= current_time < dtime(9, 30)):
+            return {}
+
+        intraday = t.history(period="1d", interval="1m", prepost=True)
+        if intraday.empty:
+            return {}
+
+        idx_et = intraday.index.tz_convert(ET)
+        pm_bars = intraday[idx_et.time < dtime(9, 30)]
+        if pm_bars.empty:
+            return {}
+
+        pm_price = float(pm_bars["Close"].iloc[-1])
+        pm_gap   = round((pm_price - prev_close) / prev_close * 100, 2) if prev_close else 0
+        pm_vol   = int(pm_bars["Volume"].sum())
+
+        return {
+            "premarket_price":   round(pm_price, 2),
+            "premarket_gap_pct": pm_gap,
+            "premarket_volume":  pm_vol,
+        }
+    except Exception as e:
+        log.warning(f"[snapshot] premarket error: {e}")
+        return {}
 
 
 async def get_snapshot(tickers: list[str]) -> dict:
@@ -70,6 +106,8 @@ async def get_snapshot(tickers: list[str]) -> dict:
                 "sector":      info.get("sector", "Unknown"),
                 "market_cap":  info.get("marketCap"),
                 "float_shares":info.get("floatShares"),
+                # pre-market fields added if called before 9:30 AM ET
+                **_get_premarket(t, prev_close),
             }
             log.info(f"[snapshot] {ticker}: gap={gap_pct:.1f}% vol_ratio={vol_ratio:.1f}x")
 
