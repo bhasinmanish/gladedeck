@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Loader2, TrendingUp, TrendingDown, ChevronDown, ChevronUp,
-  Sparkles, RefreshCw, AlertCircle, Star, Zap, Flame,
+  Sparkles, RefreshCw, AlertCircle, Star, Zap, Flame, FileText,
 } from "lucide-react";
 
 interface NewsItem {
@@ -38,6 +38,7 @@ interface Pick {
   favorites_tickers:    string[];
   scalp_tickers:        string[];
   explosive_tickers:    string[];
+  notes?:               string;
   market_data:          Record<string, MarketDatum>;
   pattern_analysis?:    string;
   analysis_updated_at?: string;
@@ -182,6 +183,16 @@ function PickRow({ pick }: { pick: Pick }) {
           <SectionGrid tickers={pick.favorites_tickers ?? []}  data={pick.market_data} side="favorites"  />
           <SectionGrid tickers={pick.scalp_tickers ?? []}      data={pick.market_data} side="scalps"     />
           <SectionGrid tickers={pick.explosive_tickers ?? []}  data={pick.market_data} side="explosives" />
+          {pick.notes && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                <FileText className="h-3 w-3" /> Notes
+              </p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg px-3 py-2">
+                {pick.notes}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -234,6 +245,7 @@ export function MorningPicksPage() {
   const [favoritesRaw,  setFavoritesRaw]  = useState("");
   const [scalpsRaw,     setScalpsRaw]     = useState("");
   const [explosivesRaw, setExplosivesRaw] = useState("");
+  const [notesRaw,      setNotesRaw]      = useState("");
 
   const today = new Date().toISOString().split("T")[0];
   const todayPick = picks.find(p => p.date === today);
@@ -273,12 +285,12 @@ export function MorningPicksPage() {
       const res = await fetch("/api/morning-picks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bullish, bearish, favorites, scalps, explosives, date: today }),
+        body: JSON.stringify({ bullish, bearish, favorites, scalps, explosives, notes: notesRaw.trim(), date: today }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed to save"); return; }
       setPicks(prev => [data, ...prev.filter(p => p.date !== today)]);
-      setBullishRaw(""); setBearishRaw(""); setFavoritesRaw(""); setScalpsRaw(""); setExplosivesRaw("");
+      setBullishRaw(""); setBearishRaw(""); setFavoritesRaw(""); setScalpsRaw(""); setExplosivesRaw(""); setNotesRaw("");
     } catch {
       setError("Network error — try again.");
     } finally {
@@ -302,7 +314,7 @@ export function MorningPicksPage() {
   }
 
   const canAnalyze = picks.length >= 3;
-  const anyInput   = [bullishRaw, bearishRaw, favoritesRaw, scalpsRaw, explosivesRaw].some(r => parseTickers(r).length > 0);
+  const anyInput   = [bullishRaw, bearishRaw, favoritesRaw, scalpsRaw, explosivesRaw].some(r => parseTickers(r).length > 0) || notesRaw.trim().length > 0;
 
   if (loading) {
     return (
@@ -347,6 +359,21 @@ export function MorningPicksPage() {
           <PickInput label="Favorites"  side="favorites"  value={favoritesRaw}  onChange={setFavoritesRaw}  placeholder={"NVDA\nTSLA"} />
           <PickInput label="Scalps"     side="scalps"     value={scalpsRaw}     onChange={setScalpsRaw}     placeholder={"SPY\nQQQ"}   />
           <PickInput label="Explosives" side="explosives" value={explosivesRaw} onChange={setExplosivesRaw} placeholder={"SMCI\nMSTR"}  />
+        </div>
+
+        {/* Notes */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <FileText className="h-3 w-3" /> Notes
+          </label>
+          <Textarea
+            value={notesRaw}
+            onChange={e => setNotesRaw(e.target.value)}
+            placeholder={"NVDA - watching $900 breakout, earnings catalyst still in play\nTSLA - avoid below $200, needs volume confirmation\nAMZN - gap and go setup, key resistance at $195"}
+            rows={4}
+            className="text-xs resize-none"
+          />
+          <p className="text-[10px] text-muted-foreground">Free-form notes on specific stocks — what to watch for, levels, catalysts.</p>
         </div>
 
         {error && (

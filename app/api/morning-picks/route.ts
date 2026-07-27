@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { bullish, bearish, favorites, scalps, explosives, date } = await request.json();
+  const { bullish, bearish, favorites, scalps, explosives, notes, date } = await request.json();
   const pickDate = date ?? new Date().toISOString().split("T")[0];
 
   const normalize = (arr: unknown): string[] =>
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       favorites_tickers: favoritesTickers,
       scalp_tickers:     scalpTickers,
       explosive_tickers: explosiveTickers,
+      notes:             typeof notes === "string" ? notes.trim() : null,
       market_data:       marketData,
       updated_at:        new Date().toISOString(),
     }, { onConflict: "user_id,date" })

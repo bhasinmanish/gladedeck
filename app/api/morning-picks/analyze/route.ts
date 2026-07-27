@@ -20,61 +20,75 @@ export async function POST() {
     return NextResponse.json({ error: "Need at least 3 days of picks to analyze patterns." }, { status: 400 });
   }
 
-  // Build a structured summary of all picks + their market data
+  // Build a structured summary of all picks + their market data + notes
   const summary = picks.map(p => {
     const md = p.market_data as Record<string, Record<string, unknown>>;
-    const formatTicker = (ticker: string, side: "bullish" | "bearish") => {
+    const formatTicker = (ticker: string, category: string) => {
       const d = md?.[ticker];
-      if (!d || d.error) return `${ticker} (no data)`;
+      if (!d || d.error) return `  ${ticker} [${category}]: no data`;
       const newsItems = Array.isArray(d.news) ? (d.news as {title: string; category: string}[]) : [];
       const newsStr = newsItems.length > 0
         ? ` | catalysts: ${newsItems.map(n => `"${n.title}" [${n.category}]`).join("; ")}`
         : "";
-      const pmStr = d.premarket_gap_pct != null
-        ? ` premarket_gap=${d.premarket_gap_pct}%`
-        : "";
-      return `${ticker} [${side}]: gap=${d.gap_pct}%${pmStr} vol_ratio=${d.vol_ratio}x sma20_dist=${d.sma20_dist}% sma50_dist=${d.sma50_dist ?? "?"}% sma200_dist=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
+      const pmStr = d.premarket_gap_pct != null ? ` pm_gap=${d.premarket_gap_pct}%` : "";
+      return `  ${ticker} [${category}]: gap=${d.gap_pct}%${pmStr} vol=${d.vol_ratio}x sma20=${d.sma20_dist}% sma50=${d.sma50_dist ?? "?"}% sma200=${d.sma200_dist ?? "?"}% sector=${d.sector}${newsStr}`;
     };
-    const bullLines  = (p.bullish_tickers    as string[]).map(t => formatTicker(t, "bullish"));
-    const bearLines  = (p.bearish_tickers    as string[]).map(t => formatTicker(t, "bearish"));
-    const favLines   = ((p.favorites_tickers  ?? []) as string[]).map(t => formatTicker(t, "favorite"));
-    const scalpLines = ((p.scalp_tickers      ?? []) as string[]).map(t => formatTicker(t, "scalp"));
-    const expLines   = ((p.explosive_tickers  ?? []) as string[]).map(t => formatTicker(t, "explosive"));
-    return `\n=== ${p.date} ===\n${[...bullLines, ...bearLines, ...favLines, ...scalpLines, ...expLines].join("\n")}`;
+
+    const lines = [
+      ...(p.bullish_tickers    as string[]).map(t => formatTicker(t, "bullish")),
+      ...(p.bearish_tickers    as string[]).map(t => formatTicker(t, "bearish")),
+      ...((p.favorites_tickers  ?? []) as string[]).map(t => formatTicker(t, "favorite")),
+      ...((p.scalp_tickers      ?? []) as string[]).map(t => formatTicker(t, "scalp")),
+      ...((p.explosive_tickers  ?? []) as string[]).map(t => formatTicker(t, "explosive")),
+    ];
+
+    const notesSection = p.notes ? `\n  NOTES: ${p.notes}` : "";
+    return `\n=== ${p.date} ===\n${lines.join("\n")}${notesSection}`;
   }).join("\n");
 
   const msg = await anthropic.messages.create({
     model:      "claude-sonnet-5",
-    max_tokens: 1200,
+    max_tokens: 2000,
     messages: [{
       role: "user",
-      content: `You are analyzing a trader's morning stock picks to find consistent patterns across technical data and news catalysts.
+      content: `You are analyzing a trader's morning stock picks across ${picks.length} trading days to identify patterns and produce a structured daily playbook.
 
 Pick categories:
-- bullish / bearish: directional bias for the day
-- favorite: highest-conviction picks regardless of direction
-- scalp: quick momentum trades (in and out fast)
-- explosive: high volatility / big-move potential
+- bullish: long bias for the day
+- bearish: short bias for the day
+- favorite: highest-conviction pick regardless of direction
+- scalp: quick in-and-out momentum trade
+- explosive: high volatility, big-move potential
+- notes: per-stock observations about what to watch (levels, catalysts, risks)
 
-Here are their picks over ${picks.length} trading days, with market data captured at the time of submission:
-(gap_pct = gap vs previous close, vol_ratio = today volume / 20-day avg, sma*_dist = % above/below moving average, catalysts = same-day news headlines)
+Data fields: gap_pct = gap vs prev close, pm_gap = pre-market gap, vol = today vol / 20d avg, sma*_dist = % above/below moving average, catalysts = same-day news.
 
 ${summary}
 
-Analyze this data and answer:
-1. What do the BULLISH picks consistently have in common? (gap direction, volume, SMA positioning, sectors, news types)
-2. What do the BEARISH picks consistently have in common?
-3. What patterns define FAVORITES vs regular bullish/bearish picks? What makes something high-conviction?
-4. What technical setup appears most on SCALPS? What on EXPLOSIVES?
-5. Write a simple scoring formula (in plain English) that could automatically categorize stocks into these buckets each morning — include both technical and catalyst signals.
+Based on this history, produce TWO sections:
 
-Be specific with numbers where patterns are clear. Keep the response concise and actionable.`,
+---
+## PATTERN FINDINGS
+
+What criteria define each category based on what you observe:
+- **Bullish criteria:** (gap, volume, SMA positioning, sectors, catalyst types)
+- **Bearish criteria:**
+- **Favorite criteria:** (what makes a pick high-conviction vs just directional)
+- **Scalp criteria:** (typical setup — gap size, volume, SMA proximity)
+- **Explosive criteria:** (what makes a stock a big-mover candidate)
+
+## SCORING FORMULA
+
+A plain-English formula someone could use each morning to auto-categorize stocks. Be specific (e.g. "gap > +2% AND vol > 2x AND above SMA20 = bullish candidate"). Include catalyst signals where relevant.
+
+---
+
+Keep each section tight and actionable. Use numbers where patterns are clear.`,
     }],
   });
 
   const analysis = msg.content[0].type === "text" ? msg.content[0].text : "";
 
-  // Store the analysis back on the most recent pick row as metadata
   await supabase
     .from("morning_picks")
     .update({ pattern_analysis: analysis, analysis_updated_at: new Date().toISOString() })
