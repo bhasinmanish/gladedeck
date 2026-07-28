@@ -21,10 +21,31 @@ log = logging.getLogger(__name__)
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 
+ALLOWED_FILTER_FIELDS = {
+    "gap", "average_volume_10d_calc", "ATR", "close", "change",
+    "relative_volume_10d_calc", "sector", "market_cap_basic",
+    "float_shares_outstanding", "volume", "EPS_diluted_TTM",
+    "P/E", "return_on_equity", "debt_to_equity", "beta_1_year",
+    "RSI", "change_from_open", "Perf.1W", "Perf.1M", "short_ratio",
+    "gross_margin", "net_margin", "name",
+}
+
+ALLOWED_FILTER_OPERATIONS = {
+    "greater", "less", "greater_or_equal", "less_or_equal",
+    "equal", "not_equal", "in_range", "not_in_range",
+}
+
+
 class FilterItem(BaseModel):
     left: str
     operation: str
     right: float
+
+    def validate_fields(self) -> None:
+        if self.left not in ALLOWED_FILTER_FIELDS:
+            raise ValueError(f"Unknown filter field: {self.left!r}")
+        if self.operation not in ALLOWED_FILTER_OPERATIONS:
+            raise ValueError(f"Unknown filter operation: {self.operation!r}")
 
 
 class ScanRequest(BaseModel):
@@ -197,6 +218,10 @@ async def _scan_polygon() -> tuple[list[dict[str, Any]], int]:
 async def run_scan(request: ScanRequest) -> dict[str, Any]:
     today = datetime.date.today().isoformat()
     source = "tradingview"
+
+    if request.filters is not None:
+        for f in request.filters:
+            f.validate_fields()
 
     tv_filters = (
         [{"left": f.left, "operation": f.operation, "right": f.right}

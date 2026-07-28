@@ -12,7 +12,7 @@ export async function GET() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[trade-ideas GET]", error.message); return NextResponse.json({ error: "Failed to load trade ideas" }, { status: 500 }); }
   return NextResponse.json(data);
 }
 
@@ -24,10 +24,24 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { data, error } = await supabase
     .from("trade_ideas")
-    .insert({ ...body, user_id: user.id })
+    .insert({
+      user_id:      user.id,
+      symbol:       body.symbol,
+      direction:    body.direction,
+      thesis:       body.thesis ?? null,
+      target_price: body.target_price ?? null,
+      stop_price:   body.stop_price ?? null,
+      entry_price:  body.entry_price ?? null,
+      risk_reward:  body.risk_reward ?? null,
+      tags:         body.tags ?? null,
+      status:       body.status ?? null,
+      timeframe:    body.timeframe ?? null,
+      notes:        body.notes ?? null,
+      confidence:   body.confidence ?? null,
+    })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[trade-ideas POST]", error.message); return NextResponse.json({ error: "Failed to create trade idea" }, { status: 500 }); }
   return NextResponse.json(data, { status: 201 });
 }

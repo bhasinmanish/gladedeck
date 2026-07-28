@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   if (date)                query = query.eq("entry_date", date);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[trades GET]", error.message); return NextResponse.json({ error: "Failed to load trades" }, { status: 500 }); }
   return NextResponse.json(data);
 }
 
@@ -38,11 +38,29 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { data, error } = await supabase
     .from("trades")
-    .insert({ ...body, user_id: user.id, source: "manual" })
+    .insert({
+      user_id:     user.id,
+      source:      "manual",
+      symbol:      body.symbol,
+      side:        body.side,
+      entry_date:  body.entry_date,
+      exit_date:   body.exit_date ?? null,
+      entry_price: body.entry_price,
+      exit_price:  body.exit_price ?? null,
+      shares:      body.shares,
+      quantity:    body.quantity ?? null,
+      strategy_id: body.strategy_id ?? null,
+      notes:       body.notes ?? null,
+      pnl:         body.pnl ?? null,
+      fees:        body.fees ?? null,
+      commission:  body.commission ?? null,
+      setup_grade: body.setup_grade ?? null,
+      setup_type:  body.setup_type ?? null,
+    })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[trades POST]", error.message); return NextResponse.json({ error: "Failed to create trade" }, { status: 500 }); }
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -65,7 +83,7 @@ export async function DELETE(request: NextRequest) {
   // else: scope "all" — delete every trade for this user
 
   const { error, count } = await query.select("id", { count: "exact" });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[trades DELETE]", error.message); return NextResponse.json({ error: "Failed to delete trades" }, { status: 500 }); }
 
   return NextResponse.json({ deleted: count ?? 0 });
 }

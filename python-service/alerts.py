@@ -22,9 +22,6 @@ class AlertRequest(BaseModel):
     channels: list[Literal["in_app", "push", "sms"]] = ["in_app"]
 
 
-_sms_sent: dict[str, datetime.datetime] = {}  # symbol → last sent time
-
-
 def _get_supabase():
     return create_client(
         os.environ["SUPABASE_URL"],
@@ -32,18 +29,39 @@ def _get_supabase():
     )
 
 
-def _can_send_sms(symbol: str | None) -> bool:
+def _can_send_sms(db, user_id: str, symbol: str | None) -> bool:
     if not symbol:
         return True
-    last = _sms_sent.get(symbol)
-    if last is None:
-        return True
-    return (datetime.datetime.utcnow() - last).total_seconds() >= 3600
+    try:
+        result = (
+            db.table("sms_cooldowns")
+            .select("last_sent_at")
+            .eq("user_id", user_id)
+            .eq("symbol", symbol)
+            .maybe_single()
+            .execute()
+        )
+        if not result.data:
+            return True
+        last = datetime.datetime.fromisoformat(
+            result.data["last_sent_at"].replace("Z", "+00:00")
+        )
+        return (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() >= 3600
+    except Exception:
+        return True  # fail open so alerts still fire if DB is unavailable
 
 
-def _record_sms_sent(symbol: str | None) -> None:
-    if symbol:
-        _sms_sent[symbol] = datetime.datetime.utcnow()
+def _record_sms_sent(db, user_id: str, symbol: str | None) -> None:
+    if not symbol:
+        return
+    try:
+        db.table("sms_cooldowns").upsert(
+            {"user_id": user_id, "symbol": symbol,
+             "last_sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat()},
+            on_conflict="user_id,symbol",
+        ).execute()
+    except Exception:
+        pass
 
 
 async def dispatch_alert(request: AlertRequest) -> dict:
@@ -88,7 +106,7 @@ async def dispatch_alert(request: AlertRequest) -> dict:
                 pass  # stale subscription — clean up in a maintenance job
         delivered.append("push")
 
-    if "sms" in request.channels and _can_send_sms(request.symbol):
+    if "sms" in request.channels and _can_send_sms(db, request.user_id, request.symbol):
         user_profile = (
             db.table("users")
             .select("phone")
@@ -109,7 +127,7 @@ async def dispatch_alert(request: AlertRequest) -> dict:
                     from_=os.environ["TWILIO_FROM_NUMBER"],
                     to=phone,
                 )
-                _record_sms_sent(request.symbol)
+                _record_sms_sent(db, request.user_id, request.symbol)
                 delivered.append("sms")
             except Exception:
                 pass

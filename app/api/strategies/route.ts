@@ -12,7 +12,7 @@ export async function GET() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[strategies GET]", error.message); return NextResponse.json({ error: "Failed to load strategies" }, { status: 500 }); }
   return NextResponse.json(data);
 }
 
@@ -24,10 +24,17 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { data, error } = await supabase
     .from("strategies")
-    .insert({ ...body, user_id: user.id })
+    .insert({
+      user_id:     user.id,
+      name:        body.name,
+      description: body.description ?? null,
+      rules:       body.rules ?? null,
+      tags:        body.tags ?? null,
+      color:       body.color ?? null,
+    })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[strategies POST]", error.message); return NextResponse.json({ error: "Failed to create strategy" }, { status: 500 }); }
   return NextResponse.json(data, { status: 201 });
 }

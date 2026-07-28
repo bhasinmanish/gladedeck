@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkFeature } from "@/lib/feature-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -158,6 +159,10 @@ export async function POST(request: NextRequest) {
   const gate = await checkFeature("agents", user);
   if (gate.locked) return NextResponse.json({ error: "AI Agents is a premium feature." }, { status: 403 });
 
+  if (!checkRateLimit(`agents-chat:${user.id}`, 30, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests — try again later" }, { status: 429 });
+  }
+
   const { messages } = await request.json();
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: "messages are required" }, { status: 400 });
@@ -201,8 +206,7 @@ export async function POST(request: NextRequest) {
       proposal: toolUse ? toolUse.input : null,
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[agents/chat]", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[agents/chat]", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Failed to get response" }, { status: 500 });
   }
 }

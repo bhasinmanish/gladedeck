@@ -12,13 +12,19 @@ export async function PUT(
   const body = await request.json();
   const { data, error } = await supabase
     .from("strategies")
-    .update(body)
+    .update({
+      name:        body.name,
+      description: body.description ?? null,
+      rules:       body.rules ?? null,
+      tags:        body.tags ?? null,
+      color:       body.color ?? null,
+    })
     .eq("id", params.id)
     .eq("user_id", user.id)
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[strategies PUT]", error.message); return NextResponse.json({ error: "Failed to update strategy" }, { status: 500 }); }
   return NextResponse.json(data);
 }
 
@@ -36,6 +42,6 @@ export async function DELETE(
     .eq("id", params.id)
     .eq("user_id", user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[strategies DELETE]", error.message); return NextResponse.json({ error: "Failed to delete strategy" }, { status: 500 }); }
   return new NextResponse(null, { status: 204 });
 }
