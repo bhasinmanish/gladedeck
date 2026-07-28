@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const auth   = request.headers.get("authorization");
   const key    = new URL(request.url).searchParams.get("key");
-  if (secret && auth !== `Bearer ${secret}` && key !== secret) {
+  if (!secret || (auth !== `Bearer ${secret}` && key !== secret)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

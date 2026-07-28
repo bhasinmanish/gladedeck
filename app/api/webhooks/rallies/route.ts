@@ -1,31 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Rallies AI posts to this endpoint when a breakout fires.
 // Configure Rallies to POST to: https://<your-domain>/api/webhooks/rallies
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
-  // Basic shared-secret validation (set RALLIES_WEBHOOK_SECRET in env + Rallies config)
   const secret = request.headers.get("x-webhook-secret");
-  if (secret !== process.env.RALLIES_WEBHOOK_SECRET) {
+  if (!secret || secret !== process.env.RALLIES_WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const supabase = await createClient();
+  const userId = typeof body.user_id === "string" ? body.user_id.trim() : null;
+  if (!userId) {
+    return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
+  }
 
-  // Write alert for every user who has Rallies enabled
-  // In production, scope this to the user whose account triggered the webhook
-  const { error } = await supabase.from("alerts").insert({
-    user_id: body.user_id ?? null,
-    type: "rallies_breakout",
-    symbol: body.symbol ?? null,
-    condition: body.condition ?? null,
+  const admin = createAdminClient();
+
+  // Verify the user_id actually exists — prevents attacker-controlled writes
+  const { data: userResult } = await admin.auth.admin.getUserById(userId);
+  if (!userResult?.user) {
+    return NextResponse.json({ error: "Unknown user" }, { status: 400 });
+  }
+
+  const { error } = await admin.from("alerts").insert({
+    user_id:      userId,
+    type:         "rallies_breakout",
+    symbol:       typeof body.symbol    === "string" ? body.symbol.slice(0, 20)    : null,
+    condition:    typeof body.condition === "string" ? body.condition.slice(0, 500) : null,
     triggered_at: new Date().toISOString(),
     delivered_via: ["in_app"],
     is_read: false,
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Internal error" }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -8,6 +8,7 @@ Sending domain: onboarding@resend.dev (Resend shared domain — no custom domain
 import datetime
 import logging
 import os
+from html import escape
 from typing import Any
 
 import httpx
@@ -47,11 +48,11 @@ def _build_html(category_label: str, symbol: str | None, condition: str | None) 
     now_str = datetime.datetime.now().strftime("%b %d, %Y %H:%M ET")
 
     symbol_block = (
-        f'<div style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:4px;">{symbol}</div>'
+        f'<div style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:4px;">{escape(symbol)}</div>'
         if symbol else ""
     )
     condition_block = (
-        f'<div style="font-size:13px;color:#94a3b8;margin-top:6px;line-height:1.6;">{condition}</div>'
+        f'<div style="font-size:13px;color:#94a3b8;margin-top:6px;line-height:1.6;">{escape(condition)}</div>'
         if condition else ""
     )
 
@@ -138,17 +139,17 @@ def _build_agent_html(agent_name: str, title: str, body: str | None,
     chip_color = CONVICTION_COLORS.get((conviction or "").lower(), "#64748b")
 
     symbol_block = (
-        f'<div style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px;">{symbol}</div>'
+        f'<div style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px;">{escape(symbol)}</div>'
         if symbol else ""
     )
     conviction_block = (
         f'<span style="background:#1e293b;color:{chip_color};font-size:10px;padding:3px 10px;'
         f'border-radius:99px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">'
-        f'{conviction} conviction</span>'
+        f'{escape(conviction)} conviction</span>'
         if conviction else ""
     )
     body_block = (
-        f'<div style="font-size:14px;color:#cbd5e1;margin-top:12px;line-height:1.7;">{body}</div>'
+        f'<div style="font-size:14px;color:#cbd5e1;margin-top:12px;line-height:1.7;">{escape(body)}</div>'
         if body else ""
     )
 
@@ -166,13 +167,13 @@ def _build_agent_html(agent_name: str, title: str, body: str | None,
 
     <div style="background:#161922;border:1px solid #1e293b;border-radius:12px;padding:22px;">
       {symbol_block}
-      <div style="font-size:16px;font-weight:600;color:#f1f5f9;line-height:1.4;">{title}</div>
+      <div style="font-size:16px;font-weight:600;color:#f1f5f9;line-height:1.4;">{escape(title)}</div>
       {body_block}
       <div style="margin-top:16px;">{conviction_block}</div>
     </div>
 
     <div style="margin-top:20px;font-size:11px;color:#64748b;line-height:1.6;">
-      From your agent <span style="color:#94a3b8;">{agent_name}</span> · {now_str}<br>
+      From your agent <span style="color:#94a3b8;">{escape(agent_name)}</span> · {now_str}<br>
       <a href="{APP_URL}/agents" style="color:#818cf8;text-decoration:none;">View in Glade Deck</a>
     </div>
 

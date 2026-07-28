@@ -4,14 +4,16 @@ import { exchangeCodeForTokens, getAccountNumbers } from "@/lib/schwab";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const code  = searchParams.get("code");
-  const error = searchParams.get("error");
+  const code          = searchParams.get("code");
+  const error         = searchParams.get("error");
+  const returnedState = searchParams.get("state");
+  const expectedState = request.cookies.get("schwab_oauth_state")?.value;
 
   const redirectBase = process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
     : `https://${request.headers.get("x-forwarded-host") ?? "gladedeck.com"}`;
 
-  if (error || !code) {
+  if (error || !code || !returnedState || !expectedState || returnedState !== expectedState) {
     return NextResponse.redirect(`${redirectBase}/dashboard?schwab=error`);
   }
 

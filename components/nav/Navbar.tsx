@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { BarChart2, LogOut, SlidersHorizontal, ShieldCheck, Lock } from "lucide-react";
+import { ADMIN_EMAIL } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
 import { DashboardPreferences } from "@/components/dashboard/DashboardPreferences";
@@ -95,7 +96,7 @@ export function Navbar({ user }: { user: User }) {
         <span className="text-xs text-muted-foreground hidden sm:block mr-1">
           {user.email}
         </span>
-        {user.email === "manshabhasin9@gmail.com" && (
+        {user.email === ADMIN_EMAIL && (
           <Link href="/admin" title="Admin portal">
             <Button variant="ghost" size="icon">
               <ShieldCheck className="h-4 w-4 text-primary" />

@@ -29,3 +29,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+.vercel
+
+# ── Claude Code context (may contain env var references) ─────
+CLAUDE.md

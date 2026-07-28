@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import os
 
 from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
@@ -9,7 +10,6 @@ from alerts import dispatch_alert, AlertRequest
 from snapshot import get_snapshot, SnapshotRequest
 
 import logging
-import os
 
 load_dotenv()
 
@@ -35,11 +35,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Glade Deck Scanner Service", lifespan=lifespan)
 
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://gladedeck.com,https://gladedeck-zeta.vercel.app,http://localhost:3000",
+)
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your Vercel domain in production
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Service-Secret"],
 )
 
 

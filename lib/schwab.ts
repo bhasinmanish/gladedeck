@@ -14,12 +14,13 @@ export const SCHWAB_REDIRECT_URI  = process.env.SCHWAB_REDIRECT_URI!;
 
 // ── OAuth helpers ─────────────────────────────────────────────────────────────
 
-export function buildAuthUrl() {
+export function buildAuthUrl(state: string) {
   const params = new URLSearchParams({
     client_id:     SCHWAB_CLIENT_ID,
     redirect_uri:  SCHWAB_REDIRECT_URI,
     response_type: "code",
     scope:         "readonly",
+    state,
   });
   return `${AUTH_URL}?${params}`;
 }

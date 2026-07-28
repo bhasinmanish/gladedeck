@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkFeature } from "@/lib/feature-access";
 import { buildAuthUrl } from "@/lib/schwab";
+import { randomBytes } from "crypto";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -14,5 +15,14 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/dashboard?schwab=locked`);
   }
 
-  return NextResponse.redirect(buildAuthUrl());
+  const state = randomBytes(16).toString("hex");
+  const response = NextResponse.redirect(buildAuthUrl(state));
+  response.cookies.set("schwab_oauth_state", state, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV !== "development",
+    sameSite: "lax",
+    maxAge:   600, // 10 minutes
+    path:     "/",
+  });
+  return response;
 }

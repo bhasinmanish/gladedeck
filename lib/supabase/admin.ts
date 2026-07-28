@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const ADMIN_EMAIL = "manshabhasin9@gmail.com";
+export const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "manshabhasin9@gmail.com";
 
 export function createAdminClient() {
   return createClient(
