@@ -89,7 +89,7 @@ async def get_snapshot(tickers: list[str]) -> dict:
             gap_pct   = (today_open - prev_close) / prev_close * 100 if prev_close else 0
             vol_ratio = today_vol / avg_vol_20 if avg_vol_20 > 0 else 1
 
-            price = today_close
+            price = today_open  # always use open so SMA distances reflect opening conditions
             sma20_dist  = (price - sma20)  / sma20  * 100
             sma50_dist  = (price - sma50)  / sma50  * 100 if sma50  else None
             sma200_dist = (price - sma200) / sma200 * 100 if sma200 else None
