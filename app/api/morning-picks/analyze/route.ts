@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit } from "@/lib/rate-limit";
 
+export const maxDuration = 60;
+
 const anthropic = new Anthropic();
 
 export async function POST() {
@@ -10,8 +12,8 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!checkRateLimit(`analyze:${user.id}`, 5, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: "Too many requests — try again later" }, { status: 429 });
+  if (!checkRateLimit(`analyze:${user.id}`, 20, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests — try again in an hour" }, { status: 429 });
   }
 
   const { data: picks, error } = await supabase
