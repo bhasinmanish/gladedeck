@@ -44,6 +44,13 @@ interface Pick {
   analysis_updated_at?: string;
 }
 
+interface PatternAnalysis {
+  id:         string;
+  created_at: string;
+  days_count: number;
+  analysis:   string;
+}
+
 const SIDE_CONFIG = {
   bullish:    { label: "Bullish",     Icon: TrendingUp,   border: "border-profit/20",      bg: "bg-profit/5",      text: "text-profit"      },
   bearish:    { label: "Bearish",     Icon: TrendingDown, border: "border-loss/20",        bg: "bg-loss/5",        text: "text-loss"        },
@@ -234,11 +241,12 @@ function PickInput({
 
 export function WatchlistPage() {
   const [picks,     setPicks]     = useState<Pick[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [saving,     setSaving]     = useState(false);
-  const [analyzing,  setAnalyzing]  = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-  const [analysis,   setAnalysis]   = useState<string | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [analyzing,    setAnalyzing]    = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [analyses,     setAnalyses]     = useState<PatternAnalysis[]>([]);
+  const [analysisIdx,  setAnalysisIdx]  = useState(0);
 
   const [bullishRaw,    setBullishRaw]    = useState("");
   const [bearishRaw,    setBearishRaw]    = useState("");
@@ -267,9 +275,9 @@ export function WatchlistPage() {
       const res  = await fetch("/api/morning-picks");
       const data = await res.json();
       if (res.ok) {
-        setPicks(Array.isArray(data) ? data : []);
-        const latest = (data as Pick[]).find(p => p.pattern_analysis);
-        if (latest?.pattern_analysis) setAnalysis(latest.pattern_analysis);
+        setPicks(Array.isArray(data) ? data : (data.picks ?? []));
+        setAnalyses(data.analyses ?? []);
+        setAnalysisIdx(0);
       }
     } finally {
       setLoading(false);
@@ -312,10 +320,10 @@ export function WatchlistPage() {
     setAnalyzing(true);
     setError(null);
     try {
-      const res  = await fetch("/api/morning-picks/analyze", { method: "POST" });
+      const res = await fetch("/api/morning-picks/analyze", { method: "POST" });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Analysis failed"); return; }
-      setAnalysis(data.analysis);
+      await load();
     } catch {
       setError("Analysis failed — try again.");
     } finally {
@@ -323,7 +331,9 @@ export function WatchlistPage() {
     }
   }
 
-  const canAnalyze = picks.length >= 3;
+  const canAnalyze       = picks.length >= 3;
+  const alreadyAnalyzed  = analyses.length > 0 && analyses[0].days_count === picks.length;
+  const currentAnalysis  = analyses[analysisIdx] ?? null;
   const anyInput   = [bullishRaw, bearishRaw, favoritesRaw, scalpsRaw, explosivesRaw].some(r => parseTickers(r).length > 0) || notesRaw.trim().length > 0;
 
   if (loading) {
@@ -428,19 +438,42 @@ export function WatchlistPage() {
             </p>
             <Button
               size="sm" variant="outline"
-              onClick={analyze} disabled={analyzing}
+              onClick={analyze} disabled={analyzing || alreadyAnalyzed}
               className="gap-1.5 text-xs h-7"
+              title={alreadyAnalyzed ? "Log a new day's picks to re-run" : undefined}
             >
               {analyzing
                 ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing…</>
-                : <><RefreshCw className="h-3 w-3" /> {analysis ? "Re-run" : `Analyze ${picks.length} days`}</>
+                : alreadyAnalyzed
+                ? <><RefreshCw className="h-3 w-3" /> Analyzed {picks.length} days</>
+                : <><RefreshCw className="h-3 w-3" /> {analyses.length > 0 ? "Re-run" : `Analyze ${picks.length} days`}</>
               }
             </Button>
           </div>
 
-          {analysis ? (
+          {analyses.length > 1 && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground border-b border-border pb-2">
+              <button
+                onClick={() => setAnalysisIdx(i => Math.min(i + 1, analyses.length - 1))}
+                disabled={analysisIdx >= analyses.length - 1}
+                className="px-1.5 py-0.5 rounded hover:bg-muted disabled:opacity-30"
+              >←</button>
+              <span className="flex-1 text-center">
+                {analysisIdx === 0 ? "Latest" : `${analysisIdx} run${analysisIdx > 1 ? "s" : ""} ago`}
+                {" · "}{currentAnalysis?.days_count} days
+                {" · "}{new Date(currentAnalysis!.created_at).toLocaleDateString()}
+              </span>
+              <button
+                onClick={() => setAnalysisIdx(i => Math.max(i - 1, 0))}
+                disabled={analysisIdx === 0}
+                className="px-1.5 py-0.5 rounded hover:bg-muted disabled:opacity-30"
+              >→</button>
+            </div>
+          )}
+
+          {currentAnalysis ? (
             <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed border-t border-border pt-3">
-              {analysis}
+              {currentAnalysis.analysis}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">

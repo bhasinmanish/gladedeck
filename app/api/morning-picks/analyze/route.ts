@@ -123,6 +123,12 @@ Keep each section tight and actionable. Use real numbers from the data, not rang
 
   const analysis = msg.content[0].type === "text" ? msg.content[0].text : "";
 
+  // Save to dedicated history table
+  await supabase
+    .from("pattern_analyses")
+    .insert({ user_id: user.id, days_count: picks.length, analysis });
+
+  // Also update the latest pick row so morning_agent.py can read it
   await supabase
     .from("morning_picks")
     .update({ pattern_analysis: analysis, analysis_updated_at: new Date().toISOString() })

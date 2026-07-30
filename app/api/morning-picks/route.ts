@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// GET — return all picks for the current user, newest first
+// GET — return all picks + pattern analysis history for the current user
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data, error } = await supabase
-    .from("morning_picks")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("date", { ascending: false })
-    .limit(30);
+  const [picksRes, analysesRes] = await Promise.all([
+    supabase
+      .from("morning_picks")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
+      .limit(30),
+    supabase
+      .from("pattern_analyses")
+      .select("id, created_at, days_count, analysis")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  if (picksRes.error) return NextResponse.json({ error: picksRes.error.message }, { status: 500 });
+  return NextResponse.json({ picks: picksRes.data ?? [], analyses: analysesRes.data ?? [] });
 }
 
 // POST — save today's picks and pull a market data snapshot
