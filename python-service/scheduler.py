@@ -168,10 +168,10 @@ def start_scheduler():
         ),
         id="agents_intraday",
     )
-    # Morning AI watchlist — 8:30 AM ET, after enough pre-market activity
+    # Morning AI watchlist — 9:00 AM ET, just after market open
     _scheduler.add_job(
         _morning_agent_job,
-        CronTrigger(hour=8, minute=30, day_of_week="mon-fri"),
+        CronTrigger(hour=9, minute=0, day_of_week="mon-fri"),
         id="morning_agent",
     )
     _scheduler.start()
