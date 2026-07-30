@@ -26,11 +26,15 @@ export async function POST() {
       method: "POST",
       headers: { "X-Service-Secret": SERVICE_SECRET },
     });
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: "Agent failed" }, { status: 500 });
+    const text = await res.text();
+    console.log("[morning-picks/generate] python status:", res.status, "body:", text.slice(0, 500));
+    if (!res.ok) {
+      return NextResponse.json({ error: `Agent error (${res.status}): ${text.slice(0, 200)}` }, { status: 500 });
+    }
+    const data = JSON.parse(text);
     return NextResponse.json(data);
   } catch (e) {
     console.error("[morning-picks/generate]", e);
-    return NextResponse.json({ error: "Failed to run agent" }, { status: 500 });
+    return NextResponse.json({ error: `Failed to reach agent: ${e instanceof Error ? e.message : e}` }, { status: 500 });
   }
 }

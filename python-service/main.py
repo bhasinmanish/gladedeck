@@ -76,7 +76,11 @@ async def snapshot(request: SnapshotRequest):
 @app.post("/morning-agent/run", dependencies=[Depends(verify_secret)])
 async def trigger_morning_agent():
     """Manually trigger the morning AI watchlist agent."""
-    return await run_morning_agent()
+    try:
+        return await run_morning_agent()
+    except Exception as exc:
+        log.error("[morning_agent] Unhandled error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 if __name__ == "__main__":
