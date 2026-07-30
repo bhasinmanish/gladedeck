@@ -353,7 +353,7 @@ export function WatchlistPage() {
           </p>
           {hasToday && (
             <div className="flex items-center gap-2">
-              {isAiToday
+              {todayPick?.notes?.startsWith("[AI]")
                 ? <Badge variant="outline" className="text-primary border-primary/30 text-[10px]">AI generated</Badge>
                 : <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">Saved today</Badge>
               }
