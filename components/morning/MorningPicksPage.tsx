@@ -332,8 +332,8 @@ export function WatchlistPage() {
   }
 
   const canAnalyze       = picks.length >= 3;
-  const alreadyAnalyzed  = analyses.length > 0 && analyses[0].days_count === picks.length;
   const currentAnalysis  = analyses[analysisIdx] ?? null;
+  const alreadyAnalyzed  = analyses.length > 0 && !!analyses[0].analysis && analyses[0].days_count === picks.length;
   const anyInput   = [bullishRaw, bearishRaw, favoritesRaw, scalpsRaw, explosivesRaw].some(r => parseTickers(r).length > 0) || notesRaw.trim().length > 0;
 
   if (loading) {
@@ -471,14 +471,15 @@ export function WatchlistPage() {
             </div>
           )}
 
-          {currentAnalysis ? (
+          {currentAnalysis?.analysis ? (
             <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed border-t border-border pt-3">
               {currentAnalysis.analysis}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              You have {picks.length} day{picks.length !== 1 ? "s" : ""} of picks.
-              Click Analyze to find what your selections have in common across all categories.
+              {analyses.length > 0
+                ? "Analysis text missing — click Re-run to regenerate."
+                : `You have ${picks.length} day${picks.length !== 1 ? "s" : ""} of picks. Click Analyze to find patterns across all categories.`}
             </p>
           )}
         </div>

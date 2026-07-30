@@ -23,7 +23,27 @@ export async function GET() {
   ]);
 
   if (picksRes.error) return NextResponse.json({ error: picksRes.error.message }, { status: 500 });
-  return NextResponse.json({ picks: picksRes.data ?? [], analyses: analysesRes.data ?? [] });
+
+  let analyses = analysesRes.data ?? [];
+
+  // If pattern_analyses table is missing or empty, fall back to the analysis
+  // stored on the pick rows (pre-migration state)
+  if (analyses.length === 0) {
+    const allPicks = picksRes.data ?? [];
+    const pickWithAnalysis = allPicks.find(
+      (p: Record<string, unknown>) => p.pattern_analysis && p.analysis_updated_at
+    );
+    if (pickWithAnalysis) {
+      analyses = [{
+        id: `legacy_${pickWithAnalysis.id}`,
+        created_at: pickWithAnalysis.analysis_updated_at,
+        days_count: allPicks.length,
+        analysis: pickWithAnalysis.pattern_analysis,
+      }];
+    }
+  }
+
+  return NextResponse.json({ picks: picksRes.data ?? [], analyses });
 }
 
 // POST — save today's picks and pull a market data snapshot
