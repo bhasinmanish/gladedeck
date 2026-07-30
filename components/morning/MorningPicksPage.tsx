@@ -235,10 +235,11 @@ function PickInput({
 export function WatchlistPage() {
   const [picks,     setPicks]     = useState<Pick[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [analysis,  setAnalysis]  = useState<string | null>(null);
+  const [saving,     setSaving]     = useState(false);
+  const [analyzing,  setAnalyzing]  = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [analysis,   setAnalysis]   = useState<string | null>(null);
 
   const [bullishRaw,    setBullishRaw]    = useState("");
   const [bearishRaw,    setBearishRaw]    = useState("");
@@ -323,7 +324,24 @@ export function WatchlistPage() {
     }
   }
 
+  async function generate() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res  = await fetch("/api/morning-picks/generate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Generation failed"); return; }
+      if (data.skipped) { setError("Picks already logged for today — edit them manually if needed."); return; }
+      await load();
+    } catch {
+      setError("Generation failed — try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const canAnalyze = picks.length >= 3;
+  const isAiToday  = todayPick?.notes?.startsWith("[AI]") ?? false;
   const anyInput   = [bullishRaw, bearishRaw, favoritesRaw, scalpsRaw, explosivesRaw].some(r => parseTickers(r).length > 0) || notesRaw.trim().length > 0;
 
   if (loading) {
@@ -353,9 +371,10 @@ export function WatchlistPage() {
           </p>
           {hasToday && (
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">
-                Saved today
-              </Badge>
+              {isAiToday
+                ? <Badge variant="outline" className="text-primary border-primary/30 text-[10px]">AI generated</Badge>
+                : <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">Saved today</Badge>
+              }
               <Button
                 size="sm" variant="ghost"
                 onClick={() => loadForEditing(todayPick!)}
@@ -401,10 +420,10 @@ export function WatchlistPage() {
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             onClick={save}
-            disabled={saving || !anyInput}
+            disabled={saving || generating || !anyInput}
             className="gap-1.5"
             size="sm"
           >
@@ -412,8 +431,22 @@ export function WatchlistPage() {
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving &amp; fetching data…</>
               : "Save Picks"}
           </Button>
+          <Button
+            onClick={generate}
+            disabled={saving || generating}
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+          >
+            {generating
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating picks…</>
+              : <><Sparkles className="h-3.5 w-3.5" /> Generate AI Picks</>}
+          </Button>
           {saving && (
             <p className="text-xs text-muted-foreground">Pulling market data for each ticker…</p>
+          )}
+          {generating && (
+            <p className="text-xs text-muted-foreground">Scanning pre-market and asking AI to categorize…</p>
           )}
         </div>
       </div>

@@ -8,6 +8,7 @@ from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
 from alerts import dispatch_alert, AlertRequest
 from snapshot import get_snapshot, SnapshotRequest
+from morning_agent import run_morning_agent
 
 import logging
 
@@ -70,6 +71,12 @@ async def alert(request: AlertRequest):
 async def snapshot(request: SnapshotRequest):
     """Return gap %, volume ratio, SMA distances, sector, and news for a list of tickers."""
     return await get_snapshot(request.tickers)
+
+
+@app.post("/morning-agent/run", dependencies=[Depends(verify_secret)])
+async def trigger_morning_agent():
+    """Manually trigger the morning AI watchlist agent."""
+    return await run_morning_agent()
 
 
 if __name__ == "__main__":

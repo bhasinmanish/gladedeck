@@ -22,6 +22,7 @@ from scanner import run_scan, ScanRequest
 from market_monitor import run_market_monitor
 from price_alert_checker import check_price_alerts
 from agent_runner import run_agents
+from morning_agent import run_morning_agent
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +95,13 @@ def _agent_intraday_job():
         log.error("Intraday agent run failed: %s", exc)
 
 
+def _morning_agent_job():
+    try:
+        asyncio.run(run_morning_agent())
+    except Exception as exc:
+        log.error("Morning agent failed: %s", exc)
+
+
 def start_scheduler():
     # Market-wide news monitor every 15 min during extended hours (6 AM – 8 PM ET)
     _scheduler.add_job(
@@ -159,6 +167,12 @@ def start_scheduler():
             day_of_week="mon-fri",
         ),
         id="agents_intraday",
+    )
+    # Morning AI watchlist — 8:30 AM ET, after enough pre-market activity
+    _scheduler.add_job(
+        _morning_agent_job,
+        CronTrigger(hour=8, minute=30, day_of_week="mon-fri"),
+        id="morning_agent",
     )
     _scheduler.start()
     log.info("Scheduler started.")
