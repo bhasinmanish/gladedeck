@@ -104,34 +104,33 @@ async def run_morning_agent() -> dict:
         log.warning("[morning_agent] No usable stock data")
         return {"error": "no usable stock data"}
 
-    pattern_ctx = (
-        f"\nYour established patterns (use these to guide categorization):\n{pattern_analysis}\n"
-        if pattern_analysis else ""
-    )
+    if not pattern_analysis:
+        log.warning("[morning_agent] No pattern analysis found — need at least 3 days of picks analyzed first")
+        return {"skipped": True, "reason": "no pattern analysis yet — log picks for 3+ days and run Analyze on the watchlist page first"}
 
-    prompt = f"""You are generating a pre-market watchlist for a day trader. Today is {today}.
-{pattern_ctx}
+    prompt = f"""You are generating a morning pre-market watchlist for a day trader. Today is {today}.
+
+You must categorize stocks STRICTLY according to the trader's established patterns below.
+Do NOT use your own general criteria. The patterns are the rulebook — if a stock doesn't match
+the criteria for a category, leave it out.
+
+=== TRADER'S ESTABLISHED PATTERNS ===
+{pattern_analysis}
+=== END PATTERNS ===
+
 Pre-market movers right now (sorted by gap/volume):
 {chr(10).join(stock_lines)}
 
-Categorize these stocks into a morning watchlist. Only include stocks with a clear edge — keep each list tight and actionable. Do not include a stock in multiple categories unless it truly fits both.
+Using ONLY the criteria from the patterns above, categorize these stocks. Each list should be tight — only stocks that clearly match the criteria. Favorites max 3. A stock can appear in at most one category.
 
-Categories:
-- bullish: gap up, strong volume, good SMA setup for longs
-- bearish: gap down or showing weakness, short candidates
-- favorites: max 3 highest-conviction picks from either direction
-- scalps: volatile, good for quick in-and-out momentum trades
-- explosives: potential for a very large % move today
-- notes: 2-3 sentences on the most important setups to watch and any key levels/catalysts
-
-Output ONLY valid JSON with this exact structure, no extra text:
+Output ONLY valid JSON, no other text:
 {{
-  "bullish": ["SYMBOL", "SYMBOL"],
+  "bullish": ["SYMBOL"],
   "bearish": ["SYMBOL"],
   "favorites": ["SYMBOL"],
-  "scalps": ["SYMBOL", "SYMBOL"],
+  "scalps": ["SYMBOL"],
   "explosives": ["SYMBOL"],
-  "notes": "Your notes here."
+  "notes": "2-3 sentences on the standout setups today and why they fit the criteria."
 }}"""
 
     # 5. Call Claude
