@@ -1,14 +1,12 @@
 """
 Pattern analysis for a user's morning picks.
-Runs as a FastAPI background task so there's no HTTP timeout constraint.
+Accepts pick data from the caller — no Supabase connection required here.
 """
 
-import datetime
 import logging
 import os
 
 import anthropic
-from supabase import create_client
 
 log = logging.getLogger(__name__)
 
@@ -100,26 +98,17 @@ Keep it tight and actionable. Use real numbers from the data."""
     return prompt, n
 
 
-def run_analysis_for_user(user_id: str) -> None:
-    """Fetch picks, call Claude, save result. Runs as a background task (no timeout)."""
+def analyze_picks(picks: list) -> dict:
+    """
+    Synchronously analyze pick data with Claude and return the analysis text.
+    Picks are passed in by the caller — no Supabase connection needed here.
+    """
+    if len(picks) < 3:
+        return {"error": "Need at least 3 days of picks"}
+
+    prompt, n_days = _build_prompt(picks)
+
     try:
-        db = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-        result = (
-            db.table("morning_picks")
-            .select("date,bullish_tickers,bearish_tickers,favorites_tickers,scalp_tickers,explosive_tickers,notes,market_data,pattern_analysis")
-            .eq("user_id", user_id)
-            .order("date")
-            .execute()
-        )
-        picks = result.data or []
-
-        if len(picks) < 3:
-            log.warning("[pick_analyzer] Only %d picks for user %s — need 3+", len(picks), user_id)
-            return
-
-        prompt, n_days = _build_prompt(picks)
-
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         resp = client.messages.create(
             model="claude-sonnet-5",
@@ -127,30 +116,8 @@ def run_analysis_for_user(user_id: str) -> None:
             messages=[{"role": "user", "content": prompt}],
         )
         analysis = resp.content[0].text.strip() if resp.content[0].type == "text" else ""
-
-        if not analysis:
-            log.error("[pick_analyzer] Claude returned empty analysis for user %s", user_id)
-            return
-
-        now = datetime.datetime.utcnow().isoformat()
-
-        # Save to most recent pick row (morning_agent reads from here)
-        db.table("morning_picks").update({
-            "pattern_analysis": analysis,
-            "analysis_updated_at": now,
-        }).eq("user_id", user_id).eq("date", picks[-1]["date"]).execute()
-
-        # Save to pattern_analyses history table (best-effort)
-        try:
-            db.table("pattern_analyses").insert({
-                "user_id": user_id,
-                "days_count": n_days,
-                "analysis": analysis,
-            }).execute()
-        except Exception as e:
-            log.warning("[pick_analyzer] pattern_analyses save failed (table may not exist): %s", e)
-
-        log.info("[pick_analyzer] Done for user %s — %d days analyzed", user_id, n_days)
-
+        log.info("[pick_analyzer] Done — %d days, %d chars", n_days, len(analysis))
+        return {"analysis": analysis, "days_analyzed": n_days}
     except Exception as exc:
-        log.error("[pick_analyzer] Failed for user %s: %s", user_id, exc, exc_info=True)
+        log.error("[pick_analyzer] Claude failed: %s", exc)
+        return {"error": f"Claude failed: {exc}"}

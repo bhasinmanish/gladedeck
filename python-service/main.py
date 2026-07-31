@@ -1,17 +1,18 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Header, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 import logging
+from typing import Any
 
 from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
 from alerts import dispatch_alert, AlertRequest
 from snapshot import get_snapshot, SnapshotRequest
 from morning_agent import run_morning_agent
-from pick_analyzer import run_analysis_for_user
+from pick_analyzer import analyze_picks
 
 log = logging.getLogger(__name__)
 
@@ -87,15 +88,16 @@ async def trigger_morning_agent():
 
 
 class AnalyzePicksRequest(BaseModel):
-    user_id: str
+    picks: list[dict[str, Any]]
 
 
 @app.post("/analyze-picks", dependencies=[Depends(verify_secret)])
-async def analyze_picks(request: AnalyzePicksRequest, background_tasks: BackgroundTasks):
-    """Kick off pattern analysis for a user. Runs Claude in the background — returns immediately."""
-    log.info("[analyze_picks] Starting background analysis for user %s", request.user_id)
-    background_tasks.add_task(run_analysis_for_user, request.user_id)
-    return {"status": "started"}
+def analyze_picks_endpoint(request: AnalyzePicksRequest):
+    """Run pattern analysis on the provided picks and return the analysis text.
+    Defined as a sync function so FastAPI runs it in a thread pool — safe for
+    the blocking Anthropic SDK call without blocking the event loop."""
+    log.info("[analyze_picks] Running analysis for %d picks", len(request.picks))
+    return analyze_picks(request.picks)
 
 
 if __name__ == "__main__":

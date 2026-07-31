@@ -244,7 +244,6 @@ export function WatchlistPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [analyzing,    setAnalyzing]    = useState(false);
-  const [analyzeMsg,   setAnalyzeMsg]   = useState<string | null>(null);
   const [generating,   setGenerating]   = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [analyses,     setAnalyses]     = useState<PatternAnalysis[]>([]);
@@ -320,28 +319,16 @@ export function WatchlistPage() {
 
   async function analyze() {
     setAnalyzing(true);
-    setAnalyzeMsg(null);
     setError(null);
-    let inBackground = false;
     try {
       const res = await fetch("/api/morning-picks/analyze", { method: "POST" });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Analysis failed"); return; }
-
-      if (data.status === "started") {
-        // Claude is running on the Python service — check back in 45 s
-        inBackground = true;
-        setAnalyzeMsg("Running in background — auto-checking in ~45 s…");
-        setTimeout(async () => {
-          try { await load(); setAnalyzeMsg(null); } finally { setAnalyzing(false); }
-        }, 45_000);
-      } else {
-        await load();
-      }
+      await load();
     } catch {
       setError("Analysis failed — try again.");
     } finally {
-      if (!inBackground) setAnalyzing(false);
+      setAnalyzing(false);
     }
   }
 
@@ -493,10 +480,6 @@ export function WatchlistPage() {
               }
             </Button>
           </div>
-
-          {analyzeMsg && (
-            <p className="text-xs text-muted-foreground">{analyzeMsg}</p>
-          )}
 
           {analyses.length > 1 && (
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground border-b border-border pb-2">
