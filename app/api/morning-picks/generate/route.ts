@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const PYTHON_URL    = process.env.PYTHON_SERVICE_URL ?? "https://gladedeck-production.up.railway.app";
+const PYTHON_URL    = process.env.PYTHON_SERVICE_URL ?? "https://gladedeck-production-08fa.up.railway.app";
 const SERVICE_SECRET = process.env.PYTHON_SERVICE_SECRET ?? "";
 const ADMIN_EMAIL   = process.env.ADMIN_EMAIL ?? "";
 

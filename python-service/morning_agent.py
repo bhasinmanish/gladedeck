@@ -39,11 +39,11 @@ async def run_morning_agent() -> dict:
         .select("date, notes")
         .eq("user_id", admin_id)
         .eq("date", today)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
     if existing.data:
-        notes = existing.data.get("notes", "") or ""
+        notes = existing.data[0].get("notes", "") or ""
         if not notes.startswith("[AI]"):
             log.info("[morning_agent] Admin already has manual picks for %s — skipping", today)
             return {"skipped": True, "reason": "manual picks already logged"}

@@ -1,16 +1,19 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Header, HTTPException
+from fastapi import FastAPI, Depends, Header, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
+import logging
 
 from scheduler import start_scheduler, stop_scheduler
 from scanner import run_scan, ScanRequest
 from alerts import dispatch_alert, AlertRequest
 from snapshot import get_snapshot, SnapshotRequest
 from morning_agent import run_morning_agent
+from pick_analyzer import run_analysis_for_user
 
-import logging
+log = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -81,6 +84,18 @@ async def trigger_morning_agent():
     except Exception as exc:
         log.error("[morning_agent] Unhandled error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+class AnalyzePicksRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/analyze-picks", dependencies=[Depends(verify_secret)])
+async def analyze_picks(request: AnalyzePicksRequest, background_tasks: BackgroundTasks):
+    """Kick off pattern analysis for a user. Runs Claude in the background — returns immediately."""
+    log.info("[analyze_picks] Starting background analysis for user %s", request.user_id)
+    background_tasks.add_task(run_analysis_for_user, request.user_id)
+    return {"status": "started"}
 
 
 if __name__ == "__main__":
