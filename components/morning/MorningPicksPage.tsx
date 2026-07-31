@@ -244,6 +244,7 @@ export function WatchlistPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [analyzing,    setAnalyzing]    = useState(false);
+  const [generating,   setGenerating]   = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [analyses,     setAnalyses]     = useState<PatternAnalysis[]>([]);
   const [analysisIdx,  setAnalysisIdx]  = useState(0);
@@ -331,6 +332,22 @@ export function WatchlistPage() {
     }
   }
 
+  async function generate() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res  = await fetch("/api/morning-picks/generate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Generation failed"); return; }
+      if (data.skipped) { setError(`Skipped: ${data.reason ?? "picks already exist for today"}`); return; }
+      await load();
+    } catch {
+      setError("Generation failed — try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const canAnalyze       = picks.length >= 3;
   const currentAnalysis  = analyses[analysisIdx] ?? null;
   const alreadyAnalyzed  = analyses.length > 0 && !!analyses[0].analysis && analyses[0].days_count === picks.length;
@@ -415,16 +432,29 @@ export function WatchlistPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             onClick={save}
-            disabled={saving || !anyInput}
+            disabled={saving || generating || !anyInput}
             className="gap-1.5"
             size="sm"
           >
             {saving
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving &amp; fetching data…</>
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
               : "Save Picks"}
           </Button>
-          {saving && (
-            <p className="text-xs text-muted-foreground">Pulling market data for each ticker…</p>
+          <Button
+            onClick={generate}
+            disabled={saving || generating}
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+          >
+            {generating
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+              : <><Sparkles className="h-3.5 w-3.5" /> Generate AI Picks</>}
+          </Button>
+          {(saving || generating) && (
+            <p className="text-xs text-muted-foreground">
+              {saving ? "Pulling market data…" : "Scanning pre-market and categorizing…"}
+            </p>
           )}
         </div>
       </div>
