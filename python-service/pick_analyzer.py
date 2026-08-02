@@ -119,7 +119,7 @@ def analyze_picks(picks: list) -> dict:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         resp = client.messages.create(
             model="claude-sonnet-5",
-            max_tokens=1500,
+            max_tokens=2500,
             messages=[{"role": "user", "content": prompt}],
         )
         log.info("[pick_analyzer] Claude response: stop_reason=%s blocks=%d", resp.stop_reason, len(resp.content))
