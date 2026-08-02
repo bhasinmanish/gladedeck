@@ -55,9 +55,13 @@ export async function POST() {
   }
 
   const result = await res.json() as { analysis?: string; days_analyzed?: number; error?: string };
+  console.log("[analyze] python result:", JSON.stringify(result).slice(0, 300));
 
-  if (result.error || !result.analysis) {
-    return NextResponse.json({ error: result.error ?? "No analysis returned" }, { status: 500 });
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
+  }
+  if (!result.analysis) {
+    return NextResponse.json({ error: `Empty response from analysis service (days=${result.days_analyzed ?? "?"}). Check Railway logs.` }, { status: 500 });
   }
 
   const { analysis, days_analyzed } = result;
