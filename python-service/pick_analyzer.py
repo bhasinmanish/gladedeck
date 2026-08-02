@@ -103,10 +103,17 @@ def analyze_picks(picks: list) -> dict:
     Synchronously analyze pick data with Claude and return the analysis text.
     Picks are passed in by the caller — no Supabase connection needed here.
     """
+    log.info("[pick_analyzer] analyze_picks called with %d picks", len(picks))
+    for p in picks:
+        bullish = p.get("bullish_tickers") or []
+        bearish = p.get("bearish_tickers") or []
+        log.info("[pick_analyzer]   pick %s: bullish=%s bearish=%s", p.get("date"), bullish[:3], bearish[:3])
+
     if len(picks) < 3:
         return {"error": "Need at least 3 days of picks"}
 
     prompt, n_days = _build_prompt(picks)
+    log.info("[pick_analyzer] Prompt built: %d chars, %d days", len(prompt), n_days)
 
     try:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -115,9 +122,16 @@ def analyze_picks(picks: list) -> dict:
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
         )
-        analysis = resp.content[0].text.strip() if resp.content[0].type == "text" else ""
+        log.info("[pick_analyzer] Claude response: stop_reason=%s blocks=%d", resp.stop_reason, len(resp.content))
+        for i, block in enumerate(resp.content):
+            log.info("[pick_analyzer] block[%d] type=%s", i, block.type)
+
+        # Extract text from all text blocks (safer than checking index 0 only)
+        text_parts = [block.text for block in resp.content if hasattr(block, "text") and block.text]
+        analysis = "\n".join(text_parts).strip()
+
         log.info("[pick_analyzer] Done — %d days, %d chars", n_days, len(analysis))
         return {"analysis": analysis, "days_analyzed": n_days}
     except Exception as exc:
-        log.error("[pick_analyzer] Claude failed: %s", exc)
+        log.error("[pick_analyzer] Claude failed: %s", exc, exc_info=True)
         return {"error": f"Claude failed: {exc}"}
