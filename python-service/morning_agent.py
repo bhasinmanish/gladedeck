@@ -108,7 +108,7 @@ Pre-market movers right now (sorted by gap/volume):
 
 Using ONLY the criteria from the patterns above, categorize these stocks. Each list should be tight — only stocks that clearly match the criteria. Favorites max 3. A stock can appear in at most one category.
 
-Output ONLY valid JSON, no other text:
+Respond with valid JSON in this exact format:
 {{
   "bullish": ["SYMBOL"],
   "bearish": ["SYMBOL"],
@@ -122,8 +122,8 @@ Output ONLY valid JSON, no other text:
     try:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         resp = client.messages.create(
-            model="claude-sonnet-5",
-            max_tokens=600,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
         text_parts = [block.text for block in resp.content if hasattr(block, "text") and block.text]
