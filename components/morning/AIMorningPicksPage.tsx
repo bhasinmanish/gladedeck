@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Loader2, TrendingUp, TrendingDown, ChevronDown, ChevronUp,
-  Sparkles, Star, Zap, Flame,
+  Sparkles, Star, Zap, Flame, Play,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { ADMIN_EMAIL } from "@/lib/supabase/admin";
 
 interface NewsItem {
   title: string;
@@ -188,9 +191,13 @@ function PickAccordion({ pick, defaultOpen }: { pick: AIPickDay; defaultOpen?: b
 }
 
 export function AIMorningPicksPage() {
-  const [picks, setPicks]   = useState<AIPickDay[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
+  const [picks,      setPicks]      = useState<AIPickDay[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [isAdmin,    setIsAdmin]    = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [runningBg,  setRunningBg]  = useState(false);
+  const bgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -211,6 +218,61 @@ export function AIMorningPicksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsAdmin(user?.email === ADMIN_EMAIL);
+    });
+  }, []);
+
+  // Clear polling on unmount
+  useEffect(() => () => { if (bgPollRef.current) clearInterval(bgPollRef.current); }, []);
+
+  async function runNow() {
+    setTriggering(true);
+    setError(null);
+    try {
+      const res  = await fetch("/api/morning-picks/generate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Failed to trigger agent"); return; }
+
+      if (data.status === "started") {
+        setRunningBg(true);
+        let checks = 0;
+        bgPollRef.current = setInterval(async () => {
+          checks++;
+          try {
+            const r = await fetch("/api/ai-morning-picks");
+            const fresh = await r.json();
+            const freshPicks: AIPickDay[] = Array.isArray(fresh) ? fresh : [];
+            const found = freshPicks.find(p => p.date === today);
+            if (found || checks >= 8) {
+              clearInterval(bgPollRef.current!);
+              bgPollRef.current = null;
+              if (found) setPicks(freshPicks);
+              setRunningBg(false);
+              if (!found) setError("Timed out after 2 min — check Railway logs.");
+            }
+          } catch {
+            if (checks >= 8) {
+              clearInterval(bgPollRef.current!);
+              bgPollRef.current = null;
+              setRunningBg(false);
+              setError("Could not check for results — try refreshing.");
+            }
+          }
+        }, 15_000);
+        return;
+      }
+
+      await load();
+    } catch {
+      setError("Failed to reach agent — check Railway is running.");
+    } finally {
+      setTriggering(false);
+    }
+  }
+
   const todayPick  = picks.find(p => p.date === today);
   const pastPicks  = picks.filter(p => p.date !== today);
 
@@ -224,14 +286,38 @@ export function AIMorningPicksPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 py-6 px-4">
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" /> AI Morning Picks
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Generated automatically at 9:00 AM ET each trading day using your pattern analysis.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" /> AI Morning Picks
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Generated automatically at 9:00 AM ET each trading day using your pattern analysis.
+          </p>
+        </div>
+        {isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={runNow}
+            disabled={triggering || runningBg}
+            className="gap-1.5 shrink-0"
+          >
+            {triggering || runningBg
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Running…</>
+              : <><Play className="h-3.5 w-3.5" /> Run now</>}
+          </Button>
+        )}
       </div>
+
+      {runningBg && (
+        <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            Agent is scanning pre-market data and calling Claude — checking every 15s (up to 2 min)…
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive">{error}</p>
