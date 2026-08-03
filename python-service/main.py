@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Header, HTTPException
+from fastapi import FastAPI, Depends, Header, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import asyncio
 import os
 import logging
 from typing import Any
@@ -77,14 +78,21 @@ async def snapshot(request: SnapshotRequest):
     return await get_snapshot(request.tickers)
 
 
-@app.post("/morning-agent/run", dependencies=[Depends(verify_secret)])
-async def trigger_morning_agent():
-    """Manually trigger the morning AI watchlist agent."""
+def _run_morning_agent_bg() -> None:
+    """Sync wrapper executed in FastAPI's thread pool — keeps event loop free."""
     try:
-        return await run_morning_agent()
+        result = asyncio.run(run_morning_agent())
+        log.info("[morning_agent] Background run complete: %s", result)
     except Exception as exc:
-        log.error("[morning_agent] Unhandled error: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("[morning_agent] Background run failed: %s", exc, exc_info=True)
+
+
+@app.post("/morning-agent/run", dependencies=[Depends(verify_secret)])
+async def trigger_morning_agent(background_tasks: BackgroundTasks):
+    """Manually trigger the morning AI watchlist agent (runs in background)."""
+    log.info("[morning_agent] Background run triggered via API")
+    background_tasks.add_task(_run_morning_agent_bg)
+    return {"status": "started"}
 
 
 class AnalyzePicksRequest(BaseModel):

@@ -10,6 +10,7 @@ import {
   Sparkles, RefreshCw, AlertCircle, Star, Zap, Flame, FileText, Pencil,
 } from "lucide-react";
 
+
 interface NewsItem {
   title:    string;
   category: string;
@@ -243,9 +244,8 @@ export function WatchlistPage() {
   const [picks,     setPicks]     = useState<Pick[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
-  const [analyzing,    setAnalyzing]    = useState(false);
-  const [generating,   setGenerating]   = useState(false);
-  const [error,        setError]        = useState<string | null>(null);
+  const [analyzing,  setAnalyzing]  = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
   const [analyses,     setAnalyses]     = useState<PatternAnalysis[]>([]);
   const [analysisIdx,  setAnalysisIdx]  = useState(0);
 
@@ -332,22 +332,6 @@ export function WatchlistPage() {
     }
   }
 
-  async function generate() {
-    setGenerating(true);
-    setError(null);
-    try {
-      const res  = await fetch("/api/morning-picks/generate", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Generation failed"); return; }
-      if (data.skipped) { setError(`Skipped: ${data.reason ?? "picks already exist for today"}`); return; }
-      await load();
-    } catch {
-      setError("Generation failed — try again.");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
   const canAnalyze       = picks.length >= 3;
   const currentAnalysis  = analyses[analysisIdx] ?? null;
   const alreadyAnalyzed  = analyses.length > 0 && !!analyses[0].analysis && analyses[0].days_count === picks.length;
@@ -380,10 +364,7 @@ export function WatchlistPage() {
           </p>
           {hasToday && (
             <div className="flex items-center gap-2">
-              {todayPick?.notes?.startsWith("[AI]")
-                ? <Badge variant="outline" className="text-primary border-primary/30 text-[10px]">AI generated</Badge>
-                : <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">Saved today</Badge>
-              }
+              <Badge variant="outline" className="text-profit border-profit/30 text-[10px]">Saved today</Badge>
               <Button
                 size="sm" variant="ghost"
                 onClick={() => loadForEditing(todayPick!)}
@@ -432,7 +413,7 @@ export function WatchlistPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             onClick={save}
-            disabled={saving || generating || !anyInput}
+            disabled={saving || !anyInput}
             className="gap-1.5"
             size="sm"
           >
@@ -440,21 +421,8 @@ export function WatchlistPage() {
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
               : "Save Picks"}
           </Button>
-          <Button
-            onClick={generate}
-            disabled={saving || generating}
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-          >
-            {generating
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-              : <><Sparkles className="h-3.5 w-3.5" /> Generate AI Picks</>}
-          </Button>
-          {(saving || generating) && (
-            <p className="text-xs text-muted-foreground">
-              {saving ? "Pulling market data…" : "Scanning pre-market and categorizing…"}
-            </p>
+          {saving && (
+            <p className="text-xs text-muted-foreground">Pulling market data…</p>
           )}
         </div>
       </div>

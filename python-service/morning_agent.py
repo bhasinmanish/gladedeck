@@ -1,12 +1,12 @@
 """
-Morning AI agent — runs at 8:30 AM ET on trading days.
+Morning AI agent — runs at 9:00 AM ET on trading days.
 
 Scans pre-market movers, grabs snapshot data (gap %, volume, SMAs, news),
 loads the admin user's stored pattern analysis, then asks Claude to
 categorize the top stocks into bullish/bearish/favorites/scalps/explosives.
 
-Saves the result to morning_picks for ADMIN_USER_ID so it appears on the
-watchlist page. Skips if picks already exist for today.
+Saves the result to ai_morning_picks (shared table, no user_id).
+Always runs — manual picks on the watchlist page are separate.
 """
 
 import json
@@ -32,21 +32,6 @@ async def run_morning_agent() -> dict:
 
     today = datetime.date.today().isoformat()
     db = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-    # Skip if admin already has manually-entered picks for today
-    existing = (
-        db.table("morning_picks")
-        .select("date, notes")
-        .eq("user_id", admin_id)
-        .eq("date", today)
-        .limit(1)
-        .execute()
-    )
-    if existing.data:
-        notes = existing.data[0].get("notes", "") or ""
-        if not notes.startswith("[AI]"):
-            log.info("[morning_agent] Admin already has manual picks for %s — skipping", today)
-            return {"skipped": True, "reason": "manual picks already logged"}
 
     # 1. Scan for pre-market movers
     try:
@@ -151,21 +136,20 @@ Output ONLY valid JSON, no other text:
         log.error("[morning_agent] Claude failed: %s", exc)
         return {"error": f"Claude failed: {exc}"}
 
-    # 6. Save to morning_picks
+    # 6. Save to ai_morning_picks (shared table — no user_id, never conflicts with manual picks)
     try:
-        db.table("morning_picks").upsert(
+        db.table("ai_morning_picks").upsert(
             {
-                "user_id":           admin_id,
                 "date":              today,
                 "bullish_tickers":   result.get("bullish", []),
                 "bearish_tickers":   result.get("bearish", []),
                 "favorites_tickers": result.get("favorites", []),
                 "scalp_tickers":     result.get("scalps", []),
                 "explosive_tickers": result.get("explosives", []),
-                "notes":             "[AI] " + result.get("notes", ""),
+                "notes":             result.get("notes", ""),
                 "market_data":       snap,
             },
-            on_conflict="user_id,date",
+            on_conflict="date",
         ).execute()
     except Exception as exc:
         log.error("[morning_agent] DB save failed: %s", exc)
