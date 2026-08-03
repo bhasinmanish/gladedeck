@@ -126,7 +126,10 @@ Output ONLY valid JSON, no other text:
             max_tokens=600,
             messages=[{"role": "user", "content": prompt}],
         )
-        raw = resp.content[0].text.strip()
+        text_parts = [block.text for block in resp.content if hasattr(block, "text") and block.text]
+        if not text_parts:
+            raise ValueError("No text blocks in Claude response")
+        raw = "\n".join(text_parts).strip()
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
